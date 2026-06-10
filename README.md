@@ -45,16 +45,17 @@ Pick the skills you want and the agents to install them on. Skills are copied as
 | Skill | Description |
 |-------|-------------|
 | `simplify` | Simplify and refine recently-modified code for clarity and maintainability |
-| `pr-review` | Technical review of a single PR/MR — problem-first validation, root-cause checks |
+| `review` | PR code review workflow — problem-first validation, root-cause checks, delegates domain rules to project skills |
 | `repo-manager` | Repository/platform operations — PR/MR/issue workflows, backlog and merge coordination |
-| `branch-pr` | PR creation workflow with issue-first checks |
 | `linear` | Draft Linear QA comments aligned with issue requirements and commits |
 
 ## Credits
 
-The workflow skills `branch-pr`, `pr-review`, `linear`, and `repo-manager` are derived from
+The workflow skills `repo-manager` are derived from
 [gentleman-programming/gentle-ai](https://github.com/gentleman-programming/gentle-ai) and adapted here.
+
+The `review` skill is authored by `grupo-ilao` and adapted here.
 
 ## License
 
-[MIT](./LICENSE) — except `pr-review`, which carries its own `Apache-2.0` license declared in its frontmatter.
+[MIT](./LICENSE) — covers the entire collection.

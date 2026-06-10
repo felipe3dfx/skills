@@ -3,7 +3,6 @@ name: tailwind-4
 description: >
   Tailwind CSS 4 patterns — theme variables, utility classes, Django template integration.
   Trigger: When styling with Tailwind — utility classes, theme variables, responsive design.
-license: Apache-2.0
 metadata:
   version: "2.0"
 ---

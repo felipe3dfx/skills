@@ -3,7 +3,6 @@ name: django-ninja
 description: >
   Django Ninja API patterns — Routers, Schemas, CRUD endpoints, service layer integration.
   Trigger: When building REST APIs with Django Ninja — routers, schemas, endpoints.
-license: Apache-2.0
 metadata:
   version: "1.0"
 ---

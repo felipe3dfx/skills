@@ -3,7 +3,6 @@ name: huey
 description: >
   Huey task queue patterns — async tasks, periodic tasks, Django integration, pipelines.
   Trigger: When creating async tasks with Huey — @db_task, @db_periodic_task, task pipelines.
-license: Apache-2.0
 metadata:
   version: "1.0"
 ---

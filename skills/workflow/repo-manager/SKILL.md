@@ -5,7 +5,6 @@ description: >
   backlog hygiene, and review orchestration across providers.
   Trigger: When user asks to manage repository workflows, coordinate reviews, triage work,
   or run platform-level contribution operations.
-license: Apache-2.0
 metadata:
   version: "1.0"
 ---
@@ -20,7 +19,7 @@ Use this skill for repository/platform operations, for example:
 - Cross-PR dependency/conflict coordination
 - Preparing, routing, or executing platform actions
 
-If the task is to **technically judge whether one specific PR/MR is correct and solves the problem**, invoke **`pr-review`**.
+If the task is to **technically judge whether one specific PR/MR is correct and solves the problem**, invoke **`review`**.
 
 ## Scope and Boundaries
 
@@ -34,7 +33,7 @@ If the task is to **technically judge whether one specific PR/MR is correct and 
 - Deep technical correctness review of a single PR/MR implementation
 - Root-cause validation and end-to-end flow verification inside one code change
 
-For those, route to **`pr-review`**.
+For those, route to **`review`**.
 
 ## Operating Principles
 
@@ -42,7 +41,7 @@ For those, route to **`pr-review`**.
 2. **Context first**: understand goals, constraints, branch policy, and release pressure before taking actions.
 3. **Safety first**: avoid destructive operations unless explicitly requested.
 4. **Traceability**: link actions to issue/ticket context where possible.
-5. **Clear handoffs**: when delegating a single PR/MR technical judgment, pass context to `pr-review`.
+5. **Clear handoffs**: when delegating a single PR/MR technical judgment, pass context to `review`.
 
 ## Workflow
 
@@ -59,7 +58,7 @@ For those, route to **`pr-review`**.
 ### 3) Classify and Orchestrate
 - Group items by urgency/risk/impact.
 - Propose merge or review order with rationale.
-- Route single-change technical evaluation requests to `pr-review`.
+- Route single-change technical evaluation requests to `review`.
 
 ### 4) Execute Platform Operations
 - Perform requested non-destructive operations first (labels, comments, assignments, status updates).
@@ -69,7 +68,7 @@ For those, route to **`pr-review`**.
 ### 5) Report
 - Provide concise summary: actions taken, open risks, next recommended steps.
 
-## Delegation Contract to `pr-review`
+## Delegation Contract to `review`
 
 When escalating one PR/MR for technical judgment, include:
 - PR/MR identifier and base/head
@@ -77,7 +76,7 @@ When escalating one PR/MR for technical judgment, include:
 - Noted risks or suspected root cause
 - Any branch policy or review constraints
 
-Expected output from `pr-review`: approve/request-changes/comment recommendation backed by evidence.
+Expected output from `review`: approve/request-changes/comment recommendation backed by evidence.
 
 ## Example Commands (illustrative only)
 
@@ -109,7 +108,7 @@ glab issue list
 2. ...
 
 ## Review Orchestration
-- Routed to pr-review: <PR/MR>
+- Routed to review: <PR/MR>
 - Pending review: ...
 
 ## Risks / Blockers

@@ -3,7 +3,6 @@ name: alpinejs
 description: >
   Alpine.js component patterns — directives, reactivity, Django template integration.
   Trigger: When using Alpine.js directives (x-data, x-show, x-bind) in templates.
-license: Apache-2.0
 metadata:
   version: "1.0"
 ---

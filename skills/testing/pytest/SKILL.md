@@ -3,7 +3,6 @@ name: pytest
 description: >
   Pytest patterns — Factory Boy, mocker, standalone functions, Django view testing.
   Trigger: When writing Python tests — fixtures, factories, mocking, Django views.
-license: Apache-2.0
 metadata:
   version: "2.0"
 ---

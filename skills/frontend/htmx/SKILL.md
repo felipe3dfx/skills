@@ -3,7 +3,6 @@ name: htmx
 description: >
   HTMX interaction patterns — partial rendering, Django CBV integration, filters, OOB swaps.
   Trigger: When using HTMX attributes, partial templates, or Django HTMX mixins.
-license: Apache-2.0
 metadata:
   version: "1.0"
 ---

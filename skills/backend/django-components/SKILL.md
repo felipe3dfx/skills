@@ -3,7 +3,6 @@ name: django-components
 description: >
   django-components patterns — reusable template components with slots, props, and composition.
   Trigger: When creating or editing django-components (template components with Python class).
-license: Apache-2.0
 metadata:
   version: "1.0"
 ---

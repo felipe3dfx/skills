@@ -3,7 +3,6 @@ name: playwright
 description: >
   Playwright E2E testing patterns.
   Trigger: When writing E2E tests - Page Objects, selectors, MCP workflow.
-license: Apache-2.0
 metadata:
   version: "1.1"
 ---
