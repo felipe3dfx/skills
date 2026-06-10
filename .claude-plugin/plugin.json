@@ -1,0 +1,21 @@
+{
+  "name": "felipe3dfx-skills",
+  "skills": [
+    "./skills/alpinejs",
+    "./skills/branch-pr",
+    "./skills/django-components",
+    "./skills/django-expert",
+    "./skills/django-ninja",
+    "./skills/django-pytest",
+    "./skills/django-simplify",
+    "./skills/htmx",
+    "./skills/huey",
+    "./skills/linear",
+    "./skills/playwright",
+    "./skills/pr-review",
+    "./skills/pytest",
+    "./skills/repo-manager",
+    "./skills/simplify",
+    "./skills/tailwind-4"
+  ]
+}
