@@ -13,7 +13,7 @@ Review pull requests as an orchestrator, not a rules container:
 1. Does the change actually solve the stated problem?
 2. Does it pass the project's domain rules (delegated to specialized skills)?
 3. Does the design hold up (encapsulation, SRP, transactions, contracts)?
-4. Do the project's automated checks pass (ruff, ty, djlint)?
+4. Do GitHub's CI checks for the PR pass?
 
 This skill delegates domain rules to available project skills (`django-expert`,
 `django-pytest`, `htmx`, `huey`, `django-simplify`, `simplify`, `tailwind-4`,
@@ -205,27 +205,23 @@ harmless in that specific context:
 
 ---
 
-## Step 6 — Run Automated Checks
+## Step 6 — Inspect GitHub CI Checks
 
-Run the project's own tooling against the changed files. Results from
-these commands are authoritative and should be quoted in the review when
-they fail.
+Do **not** run tests, linters, type checkers, formatters, or project tooling
+locally as part of this review skill. The review validates automated checks
+against the PR's GitHub check runs / CI status.
 
-```bash
-BASE="${BASE_BRANCH:-main}"
-CHANGED_PY=$(git diff --name-only "$BASE"...HEAD -- '*.py')
-CHANGED_HTML=$(git diff --name-only "$BASE"...HEAD -- '*.html')
+Fetch the current GitHub checks for the PR head commit and report their state:
+- If a check failed, quote the failing check name and summarize the failure from
+  GitHub's check output or log snippet when available.
+- If checks are pending, say they are pending; do not replace them by running
+  local commands.
+- If checks are unavailable or the platform integration cannot fetch them,
+  state that explicitly and continue the code review using code evidence only.
 
-# Lint and format
-uv run ruff check $CHANGED_PY
-uv run ruff format --check $CHANGED_PY
-
-# Type check
-uv run ty $CHANGED_PY
-
-# Template lint
-uv run djlint --check $CHANGED_HTML
-```
+CI results are useful evidence, but they do not replace the reviewer's job:
+still verify correctness, design, and changed-code behavior from the actual
+diff and current files.
 
 **Search callers when signatures change**: If the PR modifies a public function
 signature, a model field, or a URL name, use available search tools to find
@@ -301,7 +297,8 @@ code and identifiers are in English.
    without a reason is unverifiable; a reason without a solution blocks the
    author without helping them move forward.
 4. **Warnings** — non-blocking but worth addressing
-5. **Automated checks** — ruff, ty, djlint results (include verbatim if any failed)
+5. **GitHub CI checks** — current check-run status; include failing check names
+   and GitHub-provided failure details when available
 6. **What is correct** — brief acknowledgment of what was done well
 
 ### Multi-round reviews
