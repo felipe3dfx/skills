@@ -183,6 +183,121 @@ def check_service_kwargs_only(func: ast.FunctionDef, path: Path):
 # ---------------------------------------------------------------------------
 
 
+def _has_atomic_anywhere(func: ast.FunctionDef) -> bool:
+    """Return True if the function is wrapped in transaction.atomic via decorator OR
+    via a `with transaction.atomic():` / `with atomic():` block in the OUTER body only.
+
+    Does NOT descend into nested FunctionDef / AsyncFunctionDef / Lambda — atomic
+    wrapping inside an inner function does not protect the outer service.
+    """
+    # Decorator-level check.
+    if has_decorator(func, 'transaction.atomic') or has_decorator(func, 'atomic'):
+        return True
+
+    # Iterative BFS/DFS that stops at nested function boundaries.
+    nested_func_types = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)
+    queue = list(ast.iter_child_nodes(func))
+    while queue:
+        node = queue.pop()
+        if isinstance(node, nested_func_types):
+            # Do not recurse into nested functions.
+            continue
+        if isinstance(node, (ast.With, ast.AsyncWith)):
+            for item in node.items:
+                try:
+                    src = ast.unparse(item.context_expr)
+                except (AttributeError, ValueError):
+                    continue
+                if 'atomic' in src:
+                    return True
+        queue.extend(ast.iter_child_nodes(node))
+    return False
+
+
+def _has_atomic_block_assert(func: ast.FunctionDef) -> bool:
+    """Return True if the function contains `assert connection.in_atomic_block`,
+    which signals that the caller is responsible for providing the transaction.
+
+    Only scans the outer function body — does not descend into nested functions.
+    """
+    nested_func_types = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)
+    queue = list(ast.iter_child_nodes(func))
+    while queue:
+        node = queue.pop()
+        if isinstance(node, nested_func_types):
+            continue
+        if isinstance(node, ast.Assert):
+            try:
+                src = ast.unparse(node.test)
+            except (AttributeError, ValueError):
+                pass
+            else:
+                if 'in_atomic_block' in src:
+                    return True
+        queue.extend(ast.iter_child_nodes(node))
+    return False
+
+
+def _is_inside_loop(node: ast.AST, ancestors: list[ast.AST]) -> bool:
+    """Return True if any ancestor in the list is a For / AsyncFor / While node."""
+    return any(isinstance(a, (ast.For, ast.AsyncFor, ast.While)) for a in ancestors)
+
+
+def _count_orm_writes(func: ast.FunctionDef) -> int:
+    """Count distinct ORM write call-sites in the function body.
+
+    Only counts primary write verbs from ORM_WRITE_CALLS (save, create, update,
+    delete, bulk_create, bulk_update, get_or_create, update_or_create).  M2M
+    helpers like add/remove/set are intentionally excluded because they are
+    frequently used as secondary side-effects and counting them would
+    over-flag utility functions like model_update.
+
+    Special case: `update()` called on a plain variable (ast.Name receiver) is
+    likely a dict/list mutation, not an ORM QuerySet update — it is excluded.
+    ORM update is always chained (queryset.filter(...).update(...)), so its
+    receiver is an ast.Call or ast.Attribute, not a bare ast.Name.
+
+    Loop-write rule: a single ORM write inside a for/while loop executes once
+    per iteration, breaking atomicity across iterations exactly like two separate
+    writes.  If any write is found inside a loop body the function is treated as
+    having ≥2 writes regardless of the raw call-site count.
+    """
+    nested_func_types = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)
+
+    count = 0
+    has_loop_write = False
+
+    # Walk the outer function body only, tracking ancestor nodes.
+    # We use an explicit stack of (node, ancestors) pairs.
+    stack: list[tuple[ast.AST, list[ast.AST]]] = [
+        (child, []) for child in ast.iter_child_nodes(func)
+    ]
+    while stack:
+        node, ancestors = stack.pop()
+
+        # Stop at nested function boundaries — their writes are not ours.
+        if isinstance(node, nested_func_types):
+            continue
+
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+            attr = node.func.attr
+            if attr in ORM_WRITE_CALLS:
+                # Exclude dict.update() / set-like .update() on plain local variables.
+                if not (attr == 'update' and isinstance(node.func.value, ast.Name)):
+                    count += 1
+                    if _is_inside_loop(node, ancestors):
+                        has_loop_write = True
+
+        child_ancestors = ancestors + [node]
+        stack.extend((child, child_ancestors) for child in ast.iter_child_nodes(node))
+
+    # A single write inside a loop is equivalent to ≥2 writes: report at least 2
+    # so the ≥2 threshold in the caller fires correctly.
+    if has_loop_write and count < 2:
+        return 2
+    return count
+
+
 def check_service_transaction_atomic(func: ast.FunctionDef, path: Path):
     if func.name.startswith('_') or not looks_like_write(func.name):
         return
@@ -190,13 +305,15 @@ def check_service_transaction_atomic(func: ast.FunctionDef, path: Path):
         return
     if not _has_orm_write_in_body(func):
         return
-    if has_decorator(func, 'transaction.atomic') or has_decorator(func, '@atomic'):
+    # Fix #2: scan the WHOLE body for atomic wrapping (not just first statement).
+    if _has_atomic_anywhere(func):
         return
-    # Also accept `with transaction.atomic():` as the outermost statement
-    if func.body and isinstance(func.body[0], ast.With):
-        src = ast.unparse(func.body[0].items[0].context_expr) if func.body[0].items else ''
-        if 'atomic' in src:
-            return
+    # Fix #2: `assert connection.in_atomic_block` means caller owns the transaction.
+    if _has_atomic_block_assert(func):
+        return
+    # Fix #3: single-write services are already atomic — only flag ≥2 writes.
+    if _count_orm_writes(func) < 2:
+        return
     yield {
         'file': str(path),
         'line': func.lineno,

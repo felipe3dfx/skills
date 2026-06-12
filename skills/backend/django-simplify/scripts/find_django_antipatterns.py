@@ -6,6 +6,7 @@ import argparse
 import ast
 import contextlib
 import json
+import sys
 from collections import defaultdict
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -13,6 +14,25 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
+
+# Filename/directory patterns that indicate test infrastructure.
+_TEST_FILENAME_SUFFIXES = ('_tests.py', '_test.py')
+_TEST_FILENAME_PREFIXES = ('test_',)
+_TEST_DIR_NAMES = {'tests', 'test'}
+_TEST_EXACT_NAMES = {'conftest.py', 'factories.py'}
+
+
+def _is_test_path(path: Path) -> bool:
+    name = path.name
+    if name in _TEST_EXACT_NAMES:
+        return True
+    if any(name.endswith(s) for s in _TEST_FILENAME_SUFFIXES):
+        return True
+    if any(name.startswith(p) for p in _TEST_FILENAME_PREFIXES):
+        return True
+    if any(part in _TEST_DIR_NAMES for part in path.parts):
+        return True
+    return False
 
 
 @dataclass
@@ -27,7 +47,7 @@ class DjangoAntiPattern:
 
 
 class DjangoAntiPatternDetector(ast.NodeVisitor):
-    def __init__(self, filename: str, source_lines: list[str]):
+    def __init__(self, filename: str, source_lines: list[str], parent_map: dict | None = None):
         self.filename = filename
         self.source_lines = source_lines
         self.issues: list[DjangoAntiPattern] = []
@@ -35,6 +55,8 @@ class DjangoAntiPatternDetector(ast.NodeVisitor):
         self.current_class = None
         self.current_function = None
         self.function_queries = 0
+        # Maps node id → parent node; built once per file by analyze_file.
+        self._parent_map: dict = parent_map or {}
 
     def _add(
         self,
@@ -215,7 +237,7 @@ class DjangoAntiPatternDetector(ast.NodeVisitor):
                     'query',
                 )
 
-            if attr == 'count':
+            if attr == 'count' and self._count_used_as_boolean(node):
                 self._add(
                     node.lineno,
                     'count_vs_exists',
@@ -316,6 +338,40 @@ class DjangoAntiPatternDetector(ast.NodeVisitor):
 
         self.generic_visit(node)
 
+    def _count_used_as_boolean(self, node: ast.Call) -> bool:
+        """Return True only when .count() result is used in a boolean/presence context.
+
+        Boolean context means:
+        - Direct test of an if/while: `if qs.count(): ...`
+        - Compared against a literal 0 or 1 with == / != / > / < / >= / <=
+        - Negated: `not qs.count()`
+        """
+        parent = self._parent_map.get(id(node))
+        if parent is None:
+            return False
+
+        # Direct boolean test: if qs.count(): / while qs.count():
+        if isinstance(parent, (ast.If, ast.While)) and parent.test is node:
+            return True
+
+        # Negation: not qs.count()
+        if isinstance(parent, ast.UnaryOp) and isinstance(parent.op, ast.Not):
+            return True
+
+        # Comparison: qs.count() == 0 / != 0 / > 0 / < 1 / >= 1 etc.
+        if isinstance(parent, ast.Compare):
+            # node must be the left operand or one of the comparators
+            all_operands = [parent.left, *parent.comparators]
+            if node in all_operands:
+                # At least one comparator must be a literal integer 0 or 1
+                for comp in parent.comparators:
+                    if isinstance(comp, ast.Constant) and comp.value in (0, 1):
+                        return True
+                # Also flag if compared directly to another integer literal
+                if isinstance(parent.left, ast.Constant) and parent.left.value in (0, 1):
+                    return True
+        return False
+
     def _check_update_without_f(self, node: ast.Call):
         for kw in node.keywords:
             if isinstance(kw.value, ast.BinOp):
@@ -364,6 +420,44 @@ class DjangoAntiPatternDetector(ast.NodeVisitor):
         return str(node)
 
 
+# Template tags that are purely presentational / loop-control and should not
+# count as "complex logic" when deciding whether a line is over-engineered.
+_PRESENTATION_TAGS = frozenset({
+    'if', 'elif', 'else', 'endif',
+    'for', 'endfor', 'empty',
+    'block', 'endblock',
+    'extends', 'include', 'load', 'with', 'endwith',
+    'comment', 'endcomment',
+    'csrf_token', 'url', 'static',
+    'trans', 'blocktrans', 'endblocktrans',
+})
+
+
+def _is_presentation_tag(tag_text: str) -> bool:
+    """Return True if the tag content references only loop/forloop/presentation tags."""
+    stripped = tag_text.strip()
+    # forloop.* variable references or simple presentation tags
+    if 'forloop.' in stripped:
+        return True
+    first_word = stripped.split()[0] if stripped.split() else ''
+    return first_word in _PRESENTATION_TAGS
+
+
+def _is_complex_template_line(line: str) -> bool:
+    """Return True only when a line has >3 {%…%} tags AND at least one
+    is non-presentation (i.e. contains real logic like custom filters or
+    complex with-clauses that aren't just loop-control tags).
+    """
+    tag_count = line.count('{%')
+    if tag_count <= 3:
+        return False
+    # Extract tag bodies between {% and %}
+    import re
+    tags = re.findall(r'\{%[-\s]*(.*?)[-\s]*%\}', line)
+    non_presentation = [t for t in tags if not _is_presentation_tag(t)]
+    return len(non_presentation) >= 1
+
+
 def check_template(filepath: Path) -> list[DjangoAntiPattern]:
     issues = []
     with contextlib.suppress(OSError, UnicodeDecodeError):
@@ -384,7 +478,7 @@ def check_template(filepath: Path) -> list[DjangoAntiPattern]:
                     )
                 )
 
-            if line.count('{%') >= 3:
+            if _is_complex_template_line(line):
                 issues.append(
                     DjangoAntiPattern(
                         file=str(filepath),
@@ -413,21 +507,44 @@ def check_template(filepath: Path) -> list[DjangoAntiPattern]:
 
 
 def check_urls(filepath: Path) -> list[DjangoAntiPattern]:
-    issues = []
-    with contextlib.suppress(OSError, UnicodeDecodeError):
-        content = filepath.read_text(encoding='utf-8', errors='replace')
-        lines = content.splitlines()
+    """Use AST to detect path()/re_path()/url() calls that lack a 'name' keyword argument.
 
-        for i, line in enumerate(lines, 1):
-            if (
-                ('path(' in line or 'url(' in line)
-                and 'name=' not in line
-                and 'include(' not in line
+    Line-by-line text scanning misses multi-line calls where `name=` appears
+    on a continuation line. AST inspection covers the entire call regardless
+    of formatting.
+    """
+    issues = []
+    with contextlib.suppress(OSError, UnicodeDecodeError, SyntaxError, ValueError):
+        source = filepath.read_text(encoding='utf-8', errors='replace')
+        tree = ast.parse(source, filename=str(filepath))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            # Identify path() / re_path() / url() calls
+            func = node.func
+            if isinstance(func, ast.Name):
+                func_name = func.id
+            elif isinstance(func, ast.Attribute):
+                func_name = func.attr
+            else:
+                continue
+            if func_name not in ('path', 're_path', 'url'):
+                continue
+            # Skip include() wrappers — the first argument might itself be an include()
+            if any(
+                isinstance(arg, ast.Call)
+                and isinstance(getattr(arg.func, 'id', None) or getattr(arg.func, 'attr', None), str)
+                and (getattr(arg.func, 'id', '') == 'include' or getattr(arg.func, 'attr', '') == 'include')
+                for arg in node.args
             ):
+                continue
+            # Check whether any keyword arg is named 'name'
+            has_name = any(kw.arg == 'name' for kw in node.keywords)
+            if not has_name:
                 issues.append(
                     DjangoAntiPattern(
                         file=str(filepath),
-                        line=i,
+                        line=node.lineno,
                         pattern_type='url_without_name',
                         description='URL pattern without name',
                         suggestion="Add name='...' for reverse()",
@@ -436,6 +553,15 @@ def check_urls(filepath: Path) -> list[DjangoAntiPattern]:
                     )
                 )
     return issues
+
+
+def _build_parent_map(tree: ast.AST) -> dict:
+    """Build a mapping from node id to parent node for the entire AST."""
+    parent_map: dict = {}
+    for parent in ast.walk(tree):
+        for child in ast.iter_child_nodes(parent):
+            parent_map[id(child)] = parent
+    return parent_map
 
 
 def analyze_file(filepath: Path) -> list[DjangoAntiPattern]:
@@ -449,21 +575,29 @@ def analyze_file(filepath: Path) -> list[DjangoAntiPattern]:
         tree = ast.parse(source, filename=str(filepath))
     except SyntaxError, ValueError:
         return []
-    detector = DjangoAntiPatternDetector(str(filepath), source.splitlines())
+    parent_map = _build_parent_map(tree)
+    detector = DjangoAntiPatternDetector(str(filepath), source.splitlines(), parent_map=parent_map)
     detector.visit(tree)
     return detector.issues
 
 
-def find_files(path: Path) -> Iterator[tuple[Path, str]]:
+def find_files(path: Path, include_tests: bool = False) -> Iterator[tuple[Path, str]]:
     if path.is_file():
         if path.suffix == '.py':
             yield path, 'python'
         elif path.suffix == '.html':
             yield path, 'template'
     elif path.is_dir():
+        excluded = 0
         for p in path.rglob('*.py'):
-            if '.venv' not in p.parts and 'node_modules' not in p.parts:
-                yield p, 'python'
+            if '.venv' in p.parts or 'node_modules' in p.parts:
+                continue
+            if not include_tests and _is_test_path(p):
+                excluded += 1
+                continue
+            yield p, 'python'
+        if excluded:
+            print(f'[django-antipatterns] Skipped {excluded} test file(s). Pass --include-tests to scan them.', file=sys.stderr)
         for p in path.rglob('*.html'):
             if '.venv' not in p.parts and 'templates' in p.parts:
                 yield p, 'template'
@@ -478,13 +612,14 @@ def main():
         choices=['query', 'performance', 'view', 'model', 'form', 'security'],
     )
     parser.add_argument('--min-severity', choices=['low', 'medium', 'high'], default='low')
+    parser.add_argument('--include-tests', action='store_true', default=False, help='Include test files in scan')
 
     args = parser.parse_args()
     severity_order = {'low': 0, 'medium': 1, 'high': 2}
     min_sev = severity_order[args.min_severity]
 
     all_issues = []
-    for filepath, ftype in find_files(Path(args.path)):
+    for filepath, ftype in find_files(Path(args.path), include_tests=args.include_tests):
         if ftype == 'python':
             all_issues.extend(analyze_file(filepath))
             if filepath.name == 'urls.py':

@@ -6,6 +6,7 @@ import argparse
 import ast
 import contextlib
 import json
+import sys
 from collections import defaultdict
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -13,6 +14,26 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
+
+# Filename/directory patterns that indicate test infrastructure — scanning these
+# produces nearly-all false positives for .get() / .count() usage checks.
+_TEST_FILENAME_SUFFIXES = ('_tests.py', '_test.py')
+_TEST_FILENAME_PREFIXES = ('test_',)
+_TEST_DIR_NAMES = {'tests', 'test'}
+_TEST_EXACT_NAMES = {'conftest.py', 'factories.py'}
+
+
+def _is_test_path(path: Path) -> bool:
+    name = path.name
+    if name in _TEST_EXACT_NAMES:
+        return True
+    if any(name.endswith(s) for s in _TEST_FILENAME_SUFFIXES):
+        return True
+    if any(name.startswith(p) for p in _TEST_FILENAME_PREFIXES):
+        return True
+    if any(part in _TEST_DIR_NAMES for part in path.parts):
+        return True
+    return False
 
 
 @dataclass
@@ -225,16 +246,23 @@ def analyze_file(filepath: Path) -> list[DjangoIssue]:
     return detector.issues
 
 
-def find_files(path: Path) -> Iterator[tuple[Path, str]]:
+def find_files(path: Path, include_tests: bool = False) -> Iterator[tuple[Path, str]]:
     if path.is_file():
         if path.suffix == '.py':
             yield path, 'python'
         elif path.suffix == '.html':
             yield path, 'template'
     elif path.is_dir():
+        excluded = 0
         for p in path.rglob('*.py'):
-            if '.venv' not in p.parts and 'node_modules' not in p.parts:
-                yield p, 'python'
+            if '.venv' in p.parts or 'node_modules' in p.parts:
+                continue
+            if not include_tests and _is_test_path(p):
+                excluded += 1
+                continue
+            yield p, 'python'
+        if excluded:
+            print(f'[django-issues] Skipped {excluded} test file(s). Pass --include-tests to scan them.', file=sys.stderr)
         for p in path.rglob('*.html'):
             if '.venv' not in p.parts and 'templates' in p.parts:
                 yield p, 'template'
@@ -245,13 +273,14 @@ def main():
     parser.add_argument('path', nargs='?', default='.', help='File or directory')
     parser.add_argument('--format', choices=['text', 'json'], default='text')
     parser.add_argument('--min-severity', choices=['low', 'medium', 'high'], default='low')
+    parser.add_argument('--include-tests', action='store_true', default=False, help='Include test files in scan')
 
     args = parser.parse_args()
     severity_order = {'low': 0, 'medium': 1, 'high': 2}
     min_sev = severity_order[args.min_severity]
 
     all_issues = []
-    for filepath, ftype in find_files(Path(args.path)):
+    for filepath, ftype in find_files(Path(args.path), include_tests=args.include_tests):
         if ftype == 'python':
             all_issues.extend(analyze_file(filepath))
         else:
