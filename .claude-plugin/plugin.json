@@ -1,5 +1,6 @@
 {
   "name": "felipe3dfx-skills",
+  "version": "0.1.0",
   "skills": [
     "./skills/backend/django-components",
     "./skills/backend/django-expert",
@@ -12,7 +13,9 @@
     "./skills/frontend/tailwind-4",
     "./skills/testing/playwright",
     "./skills/testing/pytest",
-    "./skills/workflow/linear",
+    "./skills/workflow/create-linear-comment",
+    "./skills/workflow/open-pr",
+    "./skills/workflow/prepare-commit",
     "./skills/workflow/repo-manager",
     "./skills/workflow/review",
     "./skills/workflow/simplify"
