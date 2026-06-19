@@ -1,6 +1,6 @@
 ---
 name: django-pytest
-description: Focused on pytest-django testing for this project. Use when writing tests, creating factories, debugging test failures, setting up fixtures, or reviewing test coverage. Follows project-specific conventions including function-based tests, *_tests.py naming, Factory Boy patterns, and view-first testing philosophy.
+description: Write, debug, and review pytest-django tests following project conventions: function-based tests, *_tests.py naming, Factory Boy with @register, view-first philosophy.
 ---
 
 # Django Pytest Testing Skill
@@ -16,33 +16,6 @@ This skill provides expert guidance for writing and debugging tests using pytest
 - Testing HTMX requests, form submissions, and email sending
 - Debugging test failures and fixture issues
 - Service tests for critical business logic
-
-## When to Use
-
-Invoke this skill when you encounter these triggers:
-
-**Writing Tests:**
-- "Write tests for this view/service/model"
-- "Add test coverage for..."
-- "Create tests for the ... feature"
-- "Test this endpoint"
-
-**Factory & Fixture Work:**
-- "Create a factory for this model"
-- "Add a fixture for..."
-- "Register this factory"
-- "Set up test data for..."
-
-**Test Debugging:**
-- "Fix this failing test"
-- "Debug test failure"
-- "Why is this test not working"
-- "Test is hanging/slow"
-
-**Coverage & Quality:**
-- "Improve test coverage"
-- "What tests are missing"
-- "Review test quality"
 
 ## Instructions
 

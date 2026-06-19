@@ -1,6 +1,6 @@
 ---
 name: django-simplify
-description: Audit Django codebases for Django-specific structural problems — N+1 queries, missing select_related/prefetch_related, fat views/models, ORM anti-patterns, unbounded querysets, hardcoded URLs, abstract models with one child, unnecessary signals, and premature service layers. Use when the user asks to audit, simplify, refactor, or find anti-patterns in Django code. Complements the generic `simplify` skill (which handles any changed code) — this one focuses on whole-project Django analysis.
+description: Whole-project Django audit for structural anti-patterns — N+1 queries, fat views/models, ORM misuse, over-engineering. Use simplify for incremental diff review.
 ---
 
 # Django Simplify

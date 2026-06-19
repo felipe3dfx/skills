@@ -1,6 +1,6 @@
 ---
 name: simplify
-description: "Trigger: simplify, clean up, or review recent code changes. Refines code safely; uses deep multi-review only for risk signals."
+description: "Incremental diff review — refine recently-changed code for clarity and safety; escalate to deep multi-review only on risk signals. Not whole-project audits (use django-simplify)."
 metadata:
   version: 1.1.0
 trigger:

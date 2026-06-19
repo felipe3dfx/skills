@@ -1,6 +1,6 @@
 ---
 name: review
-description: PR code review workflow that verifies a change solves the stated problem, follows project standards, and has no design issues. Use when reviewing a pull request, drafting review feedback, or running /review.
+description: "Review a pull request — verifies the change solves the stated problem, delegates domain rules to project skills, and checks design."
 metadata:
   author: grupo-ilao
   version: "2.0"
@@ -62,8 +62,7 @@ submitted via the GitHub API — not just mentioned in the review body.
 
 ## Step 2 — Verify the Solution Solves the Problem
 
-This is the most critical step and the one most often skipped. Well-written
-code can still fail to fix the problem.
+Well-written code can still fail to fix the problem.
 
 **Trace the full flow**: Follow the data from where it enters the system,
 through every layer it touches, to where it exits or is consumed. Verify
