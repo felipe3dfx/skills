@@ -1,20 +1,8 @@
 ---
 name: alpinejs
-description: >
-  Alpine.js component patterns — directives, reactivity, Django template integration.
-  Trigger: When using Alpine.js directives (x-data, x-show, x-bind) in templates.
+description: "Alpine.js component patterns for Django templates — js- prefix, x-data, Alpine.data(), Alpine.store(), ax3Common integration."
 metadata:
   version: "1.0"
----
-
-## When to Use
-
-Use this skill when:
-- Writing or editing templates that use Alpine.js directives (`x-data`, `x-show`, `x-bind`, `x-on`, etc.)
-- Creating interactive UI components (dropdowns, modals, tabs, tooltips, form toggles)
-- Integrating Alpine.js with HTMX in Django templates
-- Registering reusable Alpine components via `Alpine.data()` or `Alpine.store()`
-
 ---
 
 ## Critical Patterns
@@ -279,59 +267,20 @@ Reference from outside component?     -> js- prefixed class/ID
 
 ## Directive Quick Reference
 
-| Directive | Purpose | Example |
-|-----------|---------|---------|
-| `x-data` | Initialize component state | `x-data="{ open: false }"` |
-| `x-show` | Toggle visibility (CSS display) | `x-show="open"` |
-| `x-if` | Conditionally render (DOM add/remove) | `<template x-if="active">` |
-| `x-for` | Loop over items | `<template x-for="item in items">` |
-| `x-bind` | Bind attributes dynamically | `x-bind:class="{ active: isActive }"` or `:class` |
-| `x-on` | Listen to events | `x-on:click="open = true"` or `@click` |
-| `x-model` | Two-way binding on inputs | `x-model="searchQuery"` |
-| `x-text` | Set element text content | `x-text="message"` |
-| `x-html` | Set element innerHTML | `x-html="richContent"` |
-| `x-ref` | Reference element via `$refs` | `x-ref="input"` -> `$refs.input` |
-| `x-init` | Run expression on init | `x-init="fetchData()"` |
-| `x-effect` | Re-run on reactive dependency change | `x-effect="console.log(count)"` |
-| `x-transition` | Apply enter/leave transitions | `x-transition` or granular modifiers |
-| `x-cloak` | Hide until Alpine initializes | `x-cloak` (pair with `[x-cloak] { display: none }`) |
-| `x-teleport` | Render element elsewhere in DOM | `<template x-teleport="body">` |
+Full directive cheat-sheet: see [references/directives.md](./references/directives.md).
 
-## Alpine Plugins Used in ilaos
+---
 
-| Plugin | Import | Purpose |
-|--------|--------|---------|
-| `@alpinejs/collapse` | `import collapse from '@alpinejs/collapse/...'` | Smooth height transitions for expand/collapse |
-| `@alpinejs/mask` | `import mask from '@alpinejs/mask/...'` | Input masking (currency, phone, etc.) |
+## Alpine Plugins
 
-Register plugins inside `ax3Common` callback: `Alpine.plugin(collapse);`
+Plugins used: `@alpinejs/collapse` (height transitions), `@alpinejs/mask` (input masking); register via `Alpine.plugin()` inside `ax3Common`.
 
 ---
 
 ## Anti-Patterns
 
 ```html
-<!-- WRONG: No js- prefix on interactive element -->
-<div id="dropdown" x-data="{ open: false }">...</div>
-
-<!-- WRONG: Using Alpine for server communication -->
-<button @click="fetch('/api/data').then(...)">Load</button>
-<!-- RIGHT: Use HTMX for server requests -->
-<button class="js-load-data" hx-get="/api/data" hx-target="#js-results">Load</button>
-
-<!-- WRONG: Complex inline x-data for reusable components -->
-<div x-data="{ items: [], loading: false, async fetch() { ... }, filter(q) { ... } }">
-<!-- RIGHT: Register with Alpine.data() -->
-<div class="js-item-list" x-data="itemList">
-
-<!-- WRONG: Using querySelector inside Alpine component -->
-<div x-data="{ toggle() { document.querySelector('#target').classList.toggle('active') } }">
-<!-- RIGHT: Use x-ref or Alpine reactivity -->
-<div x-data="{ active: false }">
-  <div :class="{ active: active }" x-ref="target">...</div>
-</div>
-
-<!-- WRONG: Using x-if for simple show/hide -->
+<!-- WRONG: Using x-if for simple show/hide (destroys/recreates DOM, no transitions) -->
 <template x-if="open"><div>Content</div></template>
 <!-- RIGHT: Use x-show (keeps element in DOM, better for transitions) -->
 <div x-show="open" x-transition x-cloak>Content</div>

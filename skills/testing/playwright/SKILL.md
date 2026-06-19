@@ -1,8 +1,6 @@
 ---
 name: playwright
-description: >
-  Playwright E2E testing patterns.
-  Trigger: When writing E2E tests - Page Objects, selectors, MCP workflow.
+description: "Playwright E2E — Page Objects, selectors, MCP-first workflow. Trigger: writing or refactoring E2E tests."
 metadata:
   version: "1.1"
 ---
@@ -21,14 +19,6 @@ metadata:
 
 **If MCP NOT available:** Proceed with test creation based on docs and code analysis.
 
-**Why This Matters:**
-- ✅ Precise tests - exact steps needed, no assumptions
-- ✅ Accurate selectors - real DOM structure, not imagined
-- ✅ Real flow validation - verify journey actually works
-- ✅ Avoid over-engineering - minimal tests for what exists
-- ✅ Prevent flaky tests - real exploration = stable tests
-- ❌ Never assume how UI "should" work
-
 ## File Structure
 
 ```
@@ -46,7 +36,6 @@ tests/
 - ✅ `sign-up-page.ts` (page object)
 - ✅ `sign-up.md` (documentation)
 - ❌ `sign-up-critical-path.spec.ts` (WRONG - no separate files)
-- ❌ `sign-up-validation.spec.ts` (WRONG)
 
 ## Selector Priority (REQUIRED)
 
@@ -191,43 +180,7 @@ export class SignUpPage extends BasePage {
 - ✅ API helpers for test setup (`seedDatabase()`, `resetState()`)
 - ✅ Time utilities (`waitForCondition()`, `retryAction()`)
 
-**Before (BAD):**
-```typescript
-// Repeated in multiple page objects
-export class SignUpPage extends BasePage {
-  async waitForNotification(): Promise<void> {
-    await this.page.waitForSelector('[role="status"]');
-  }
-}
-export class SignInPage extends BasePage {
-  async waitForNotification(): Promise<void> {
-    await this.page.waitForSelector('[role="status"]');  // DUPLICATED!
-  }
-}
-```
-
-**After (GOOD):**
-```typescript
-// BasePage - shared across all pages
-export class BasePage {
-  async waitForNotification(): Promise<void> {
-    await this.page.waitForSelector('[role="status"]');
-  }
-}
-
-// helpers.ts - data generation
-export function generateUniqueEmail(): string {
-  return `test.${Date.now()}@example.com`;
-}
-
-export function generateTestUser() {
-  return {
-    name: "Test User",
-    email: generateUniqueEmail(),
-    password: "TestPassword123!",
-  };
-}
-```
+Move repeated selectors/methods to `BasePage`; data factories to `helpers.ts`.
 
 ## Test Pattern with Tags
 
@@ -258,62 +211,11 @@ test.describe("Login", () => {
 
 ## Test Documentation Format ({page-name}.md)
 
-```markdown
-### E2E Tests: {Feature Name}
-
-**Suite ID:** `{SUITE-ID}`
-**Feature:** {Feature description}
-
----
-
-## Test Case: `{TEST-ID}` - {Test case title}
-
-**Priority:** `{critical|high|medium|low}`
-
-**Tags:**
-- type → @e2e
-- feature → @{feature-name}
-
-**Description/Objective:** {Brief description}
-
-**Preconditions:**
-- {Prerequisites for test to run}
-- {Required data or state}
-
-### Flow Steps:
-1. {Step 1}
-2. {Step 2}
-3. {Step 3}
-
-### Expected Result:
-- {Expected outcome 1}
-- {Expected outcome 2}
-
-### Key verification points:
-- {Assertion 1}
-- {Assertion 2}
-
-### Notes:
-- {Additional considerations}
-```
-
-**Documentation Rules:**
-- ❌ NO general test running instructions
-- ❌ NO file structure explanations
-- ❌ NO code examples or tutorials
-- ❌ NO troubleshooting sections
-- ✅ Focus ONLY on specific test case
-- ✅ Keep under 60 lines when possible
+When writing a test-doc markdown file, use the template at [references/test-doc-template.md](./references/test-doc-template.md).
 
 ## Commands
 
-```bash
-npx playwright test                    # Run all
-npx playwright test --grep "login"     # Filter by name
-npx playwright test --ui               # Interactive UI
-npx playwright test --debug            # Debug mode
-npx playwright test tests/login/       # Run specific folder
-```
+Run: `npx playwright test tests/<page>/` (tests live under `tests/<page>/`).
 
 ## Keywords
 playwright, e2e, testing, page object model, selectors, end-to-end, mcp

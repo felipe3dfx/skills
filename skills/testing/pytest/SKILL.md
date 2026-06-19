@@ -1,8 +1,6 @@
 ---
 name: pytest
-description: >
-  Pytest patterns — Factory Boy, mocker, standalone functions, Django view testing.
-  Trigger: When writing Python tests — fixtures, factories, mocking, Django views.
+description: "Pytest standalone-function tests — Factory Boy fixtures, HTTP-layer mocking (responses/mocker), Django view + HTMX testing. Trigger: writing or modifying *_tests.py, factories.py, or conftest.py."
 metadata:
   version: "2.0"
 ---

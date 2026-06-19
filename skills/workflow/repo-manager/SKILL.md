@@ -1,10 +1,6 @@
 ---
 name: repo-manager
-description: >
-  Repository and collaboration-platform operations skill for PRs/MRs, issues, branches,
-  backlog hygiene, and review orchestration across providers.
-  Trigger: When user asks to manage repository workflows, coordinate reviews, triage work,
-  or run platform-level contribution operations.
+description: "Manage repository workflows — triage PRs/MRs/issues, coordinate reviews, clean backlog, orchestrate branch and release operations across GitHub/GitLab/Bitbucket."
 metadata:
   version: "1.0"
 ---
