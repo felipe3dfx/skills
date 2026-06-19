@@ -44,17 +44,19 @@ Pick the skills you want and the agents to install them on. Skills are copied as
 
 | Skill | Description |
 |-------|-------------|
-| `simplify` | Simplify and refine recently-modified code for clarity and maintainability |
+| `simplify` | Simplify recently-modified code for clarity; escalates to deep multi-review on risk signals |
+| `prepare-commit` | Pre-commit quality gate — validate changed code, architecture, and tests before staging |
 | `review` | PR code review workflow — problem-first validation, root-cause checks, delegates domain rules to project skills |
+| `open-pr` | Issue-first PR creation, gated on the post-implementation quality checks |
 | `repo-manager` | Repository/platform operations — PR/MR/issue workflows, backlog and merge coordination |
-| `linear` | Draft Linear QA comments aligned with issue requirements and commits |
+| `create-linear-comment` | Draft Linear QA comments aligned with issue requirements and commits |
 
 ## Credits
 
-The workflow skills `repo-manager` are derived from
+The `repo-manager` skill is derived from
 [gentleman-programming/gentle-ai](https://github.com/gentleman-programming/gentle-ai) and adapted here.
 
-The `review` skill is authored by `grupo-ilao` and adapted here.
+The `review`, `open-pr`, and `prepare-commit` skills are authored by `grupo-ilao` and adapted here.
 
 ## License
 
