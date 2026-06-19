@@ -1,21 +1,8 @@
 ---
 name: htmx
-description: >
-  HTMX interaction patterns — partial rendering, Django CBV integration, filters, OOB swaps.
-  Trigger: When using HTMX attributes, partial templates, or Django HTMX mixins.
+description: "HTMX — partial rendering, Django CBV integration (HTMXFilterMixin/HTMXRequestMixin), OOB swaps. Trigger: adding HTMX attributes, partial templates, or HTMX mixins; deciding HTMX vs Alpine.js."
 metadata:
   version: "1.0"
----
-
-## When to Use
-
-Use this skill when:
-- Adding HTMX attributes (`hx-get`, `hx-post`, `hx-target`, `hx-swap`, `hx-trigger`) to templates
-- Creating or editing partial templates for HTMX responses
-- Working with Django CBVs that serve HTMX requests (`HTMXRequestMixin`, `HTMXFilterMixin`)
-- Implementing OOB (Out of Band) swaps, boosting, or loading indicators
-- Deciding between HTMX and Alpine.js for a given interaction
-
 ---
 
 ## Critical Patterns
@@ -104,15 +91,25 @@ class InlineEditView(HTMXRequestMixin, DashboardMixin, FormView):
 ## Decision Tree
 
 ```
-Need to filter/search a list?              → HTMXFilterMixin + hx-get with query params
-Need a form that only works via HTMX?      → HTMXRequestMixin + hx-post
-Need to update multiple DOM areas at once?  → OOB swap (hx-swap-oob)
-Need client-side toggle/state (no server)?  → Alpine.js, NOT HTMX
-Need navigation without full reload?        → hx-boost="true" on <a> or <form>
-Need to replace content?                    → hx-swap="innerHTML" (default)
-Need to append to a list?                   → hx-swap="beforeend"
-Need to remove an element after action?     → hx-swap="delete" or hx-swap="outerHTML" with empty response
+Need to filter/search a list?                  → HTMXFilterMixin + hx-get with query params
+Need a form that only works via HTMX?          → HTMXRequestMixin + hx-post
+Need to update multiple DOM areas at once?     → OOB swap (hx-swap-oob)
+Need client-side toggle/state (no server)?     → Alpine.js, NOT HTMX
+  Toggle visibility, dropdowns?               → Alpine.js (no server trip)
+  Form validation (live)?                     → Alpine.js (instant feedback, no latency)
+  Complex UI state (modals, wizards)?         → Alpine.js (local state management)
+  Tabs switching pre-loaded content?          → Alpine.js (already in DOM, just toggle)
+Need navigation without full reload?           → hx-boost="true" on <a> or <form>
+Need to replace content?                       → hx-swap="innerHTML" (default)
+Need to append to a list?                      → hx-swap="beforeend"
+Need to remove an element after action?        → hx-swap="delete" or hx-swap="outerHTML" with empty response
+Fetch/submit data to server?                   → HTMX (server-rendered HTML partials)
+  CRUD operations?                            → HTMX (server must process + persist)
+  Tabs loading content from server?           → HTMX (each tab fetches its partial)
+  Filter/search with server data?             → HTMX (needs fresh data from backend)
 ```
+
+**Rule**: If the interaction requires the server, use HTMX. If it is purely client-side state, use Alpine.js. When using Alpine.js, prefer `x-ref` over `js-` selectors for intra-component references.
 
 ---
 
@@ -238,49 +235,15 @@ Update the list AND a counter badge in a single response.
 
 ---
 
-## HTMX vs Alpine.js
-
-| Use Case | Use | Why |
-|---|---|---|
-| Fetch/submit data to server | HTMX | Server-rendered HTML partials |
-| Toggle visibility, dropdowns | Alpine.js | Client-only state, no server trip |
-| Form validation (live) | Alpine.js | Instant feedback, no latency |
-| Filter/search with server data | HTMX | Needs fresh data from backend |
-| Tabs loading content from server | HTMX | Each tab fetches its partial |
-| Tabs switching pre-loaded content | Alpine.js | Already in DOM, just toggle |
-| Complex UI state (modals, wizards) | Alpine.js | Local state management |
-| CRUD operations | HTMX | Server must process + persist |
-
-**Rule**: If the interaction requires the server, use HTMX. If it is purely client-side state, use Alpine.js. When using Alpine.js, prefer `x-ref` over `js-` selectors for intra-component references.
-
----
-
 ## Key HTMX Attributes Reference
 
-| Attribute | Purpose | Example |
-|---|---|---|
-| `hx-get` | GET request | `hx-get="/items/"` |
-| `hx-post` | POST request | `hx-post="/items/create/"` |
-| `hx-put` | PUT request | `hx-put="/items/1/update/"` |
-| `hx-delete` | DELETE request | `hx-delete="/items/1/"` |
-| `hx-target` | Where to place response | `hx-target="#js-list"` |
-| `hx-swap` | How to swap content | `innerHTML`, `outerHTML`, `beforeend`, `afterbegin`, `delete`, `none` |
-| `hx-trigger` | What triggers the request | `click`, `change`, `keyup changed delay:500ms`, `load`, `revealed`, `intersect` |
-| `hx-indicator` | Loading indicator element | `hx-indicator="#js-spinner"` |
-| `hx-confirm` | Confirmation dialog | `hx-confirm="¿Está seguro?"` |
-| `hx-boost` | Boost links/forms to AJAX | `hx-boost="true"` |
-| `hx-push-url` | Update browser URL | `hx-push-url="true"` |
-| `hx-swap-oob` | Out of Band swap | `hx-swap-oob="true"` |
-| `hx-select` | Select subset of response | `hx-select="#js-fragment"` |
-| `hx-vals` | Extra values to send | `hx-vals='{"key": "value"}'` |
-| `hx-headers` | Extra headers | `hx-headers='{"X-Custom": "val"}'` |
-| `hx-include` | Include extra inputs | `hx-include="[name='csrf']"` |
+Full HTMX attribute reference: see [references/htmx-attributes.md](./references/htmx-attributes.md).
 
 ---
 
 ## Common Pitfalls
 
-- **Missing CSRF token**: Django requires CSRF for POST/PUT/DELETE. Include `hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'` or use the `django.middleware.csrf` cookie with `hx-headers` via a meta tag
+- **Missing CSRF token**: Django requires CSRF for POST/PUT/DELETE. Add `hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'` directly on the form or triggering element (or on a common ancestor).
 - **Forgetting `hx-target`**: Without it, HTMX replaces the triggering element itself (`hx-swap="outerHTML"` is NOT the default — `innerHTML` is)
 - **N+1 partials**: Keep partials lean. Do not query the DB inside template tags — pass pre-fetched data from the view
 - **No `js-` prefix**: Every element with HTMX attributes MUST have a `js-` prefixed class or ID
