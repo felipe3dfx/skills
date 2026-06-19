@@ -1,6 +1,6 @@
 ---
 name: create-linear-comment
-description: Draft a Markdown Linear comment aligned with issue requirements and commits. Creates comprehensive QA comments for Linear issues with test scenarios, dependencies, and technical notes. Use when creating QA comments for Linear issues or when documenting implementation changes for non-technical teammates.
+description: Draft QA-oriented Linear comments for non-technical teammates (QA, PM, PO) from issue requirements and commits. Safety gate: show draft, require approval before publishing.
 ---
 
 # Create Linear QA Comment
