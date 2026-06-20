@@ -21,77 +21,77 @@ import sys
 from pathlib import Path
 
 SKIP_DIRS = {
-    '.venv',
-    'venv',
-    'env',
-    '.env',
-    'node_modules',
-    '.git',
-    'migrations',
-    '__pycache__',
-    'static',
-    'media',
-    'dist',
-    'build',
-    '.tox',
-    'tests',
+    ".venv",
+    "venv",
+    "env",
+    ".env",
+    "node_modules",
+    ".git",
+    "migrations",
+    "__pycache__",
+    "static",
+    "media",
+    "dist",
+    "build",
+    ".tox",
+    "tests",
 }
 
 WRITE_VERBS = (
-    'create',
-    'update',
-    'delete',
-    'add',
-    'remove',
-    'assign',
-    'issue',
-    'cancel',
-    'approve',
-    'reject',
-    'register',
-    'bulk',
-    'import',
-    'sync',
-    'publish',
-    'archive',
+    "create",
+    "update",
+    "delete",
+    "add",
+    "remove",
+    "assign",
+    "issue",
+    "cancel",
+    "approve",
+    "reject",
+    "register",
+    "bulk",
+    "import",
+    "sync",
+    "publish",
+    "archive",
 )
 
-NON_WRITE_PREFIXES = ('can_', 'is_', 'get_', 'has_', 'should_', 'to_', 'build_')
+NON_WRITE_PREFIXES = ("can_", "is_", "get_", "has_", "should_", "to_", "build_")
 
 ORM_WRITE_CALLS = {
-    'save',
-    'create',
-    'update',
-    'delete',
-    'bulk_create',
-    'bulk_update',
-    'get_or_create',
-    'update_or_create',
+    "save",
+    "create",
+    "update",
+    "delete",
+    "bulk_create",
+    "bulk_update",
+    "get_or_create",
+    "update_or_create",
 }
 
 VIEW_WRITE_METHODS = {
-    'form_valid',
-    'post',
-    'put',
-    'patch',
-    'delete',
-    'create',
-    'update',
-    'destroy',
-    'perform_create',
-    'perform_update',
-    'perform_destroy',
+    "form_valid",
+    "post",
+    "put",
+    "patch",
+    "delete",
+    "create",
+    "update",
+    "destroy",
+    "perform_create",
+    "perform_update",
+    "perform_destroy",
 }
 
-FORM_WRITE_METHODS = {'save', 'clean'}
+FORM_WRITE_METHODS = {"save", "clean"}
 
-ORM_WRITE_METHODS = {'save', 'create', 'bulk_create', 'update', 'delete', 'bulk_update'}
+ORM_WRITE_METHODS = {"save", "create", "bulk_create", "update", "delete", "bulk_update"}
 
-SEVERITY_RANK = {'low': 0, 'medium': 1, 'high': 2}
+SEVERITY_RANK = {"low": 0, "medium": 1, "high": 2}
 
 
 def iter_python_files(root: Path):
-    for path in root.rglob('*.py'):
+    for path in root.rglob("*.py"):
         if any(part in SKIP_DIRS for part in path.parts):
             continue
         yield path
@@ -99,15 +99,15 @@ def iter_python_files(root: Path):
 
 def is_service_file(path: Path) -> bool:
     parts = path.parts
-    if path.name == 'services.py':
+    if path.name == "services.py":
         return True
-    return 'services' in parts and path.suffix == '.py'
+    return "services" in parts and path.suffix == ".py"
 
 
 def is_view_file(path: Path) -> bool:
     parts = {p.lower() for p in path.parts}
-    return path.name in ('views.py', 'apis.py', 'viewsets.py') or any(
-        p in parts for p in ('views', 'apis', 'viewsets')
+    return path.name in ("views.py", "apis.py", "viewsets.py") or any(
+        p in parts for p in ("views", "apis", "viewsets")
     )
 
 
@@ -146,21 +146,21 @@ def _has_orm_write_in_body(func: ast.FunctionDef) -> bool:
 # ---------------------------------------------------------------------------
 
 DJANGO_FRAMEWORK_OVERRIDES = {
-    'authenticate',
-    'get_user',
-    'get_username',
-    'get_by_natural_key',
-    'has_perm',
-    'has_module_perms',
-    'get_all_permissions',
-    'get_group_permissions',
-    'configure_user',
-    'clean_username',
+    "authenticate",
+    "get_user",
+    "get_username",
+    "get_by_natural_key",
+    "has_perm",
+    "has_module_perms",
+    "get_all_permissions",
+    "get_group_permissions",
+    "configure_user",
+    "clean_username",
 }
 
 
 def check_service_kwargs_only(func: ast.FunctionDef, path: Path):
-    if func.name.startswith('_'):
+    if func.name.startswith("_"):
         return
     if func.name in DJANGO_FRAMEWORK_OVERRIDES:
         return
@@ -169,10 +169,10 @@ def check_service_kwargs_only(func: ast.FunctionDef, path: Path):
     has_star_separator = args.vararg is not None or bool(args.kwonlyargs)
     if has_positional and not has_star_separator:
         yield {
-            'file': str(path),
-            'line': func.lineno,
-            'severity': 'medium',
-            'issue': (
+            "file": str(path),
+            "line": func.lineno,
+            "severity": "medium",
+            "issue": (
                 f"Service '{func.name}' uses positional args (HackSoft: require `*,` keyword-only)"
             ),
         }
@@ -191,7 +191,7 @@ def _has_atomic_anywhere(func: ast.FunctionDef) -> bool:
     wrapping inside an inner function does not protect the outer service.
     """
     # Decorator-level check.
-    if has_decorator(func, 'transaction.atomic') or has_decorator(func, 'atomic'):
+    if has_decorator(func, "transaction.atomic") or has_decorator(func, "atomic"):
         return True
 
     # Iterative BFS/DFS that stops at nested function boundaries.
@@ -208,7 +208,7 @@ def _has_atomic_anywhere(func: ast.FunctionDef) -> bool:
                     src = ast.unparse(item.context_expr)
                 except (AttributeError, ValueError):
                     continue
-                if 'atomic' in src:
+                if "atomic" in src:
                     return True
         queue.extend(ast.iter_child_nodes(node))
     return False
@@ -232,13 +232,13 @@ def _has_atomic_block_assert(func: ast.FunctionDef) -> bool:
             except (AttributeError, ValueError):
                 pass
             else:
-                if 'in_atomic_block' in src:
+                if "in_atomic_block" in src:
                     return True
         queue.extend(ast.iter_child_nodes(node))
     return False
 
 
-def _is_inside_loop(node: ast.AST, ancestors: list[ast.AST]) -> bool:
+def _is_inside_loop(ancestors: list[ast.AST]) -> bool:
     """Return True if any ancestor in the list is a For / AsyncFor / While node."""
     return any(isinstance(a, (ast.For, ast.AsyncFor, ast.While)) for a in ancestors)
 
@@ -281,12 +281,13 @@ def _count_orm_writes(func: ast.FunctionDef) -> int:
 
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
             attr = node.func.attr
-            if attr in ORM_WRITE_CALLS:
+            if attr in ORM_WRITE_CALLS and not (
+                attr == "update" and isinstance(node.func.value, ast.Name)
+            ):
                 # Exclude dict.update() / set-like .update() on plain local variables.
-                if not (attr == 'update' and isinstance(node.func.value, ast.Name)):
-                    count += 1
-                    if _is_inside_loop(node, ancestors):
-                        has_loop_write = True
+                count += 1
+                if _is_inside_loop(ancestors):
+                    has_loop_write = True
 
         child_ancestors = ancestors + [node]
         stack.extend((child, child_ancestors) for child in ast.iter_child_nodes(node))
@@ -299,7 +300,7 @@ def _count_orm_writes(func: ast.FunctionDef) -> int:
 
 
 def check_service_transaction_atomic(func: ast.FunctionDef, path: Path):
-    if func.name.startswith('_') or not looks_like_write(func.name):
+    if func.name.startswith("_") or not looks_like_write(func.name):
         return
     if any(func.name.lower().startswith(p) for p in NON_WRITE_PREFIXES):
         return
@@ -315,10 +316,10 @@ def check_service_transaction_atomic(func: ast.FunctionDef, path: Path):
     if _count_orm_writes(func) < 2:
         return
     yield {
-        'file': str(path),
-        'line': func.lineno,
-        'severity': 'high',
-        'issue': (
+        "file": str(path),
+        "line": func.lineno,
+        "severity": "high",
+        "issue": (
             f"Service '{func.name}' looks like a write but is not wrapped in @transaction.atomic"
         ),
     }
@@ -331,46 +332,48 @@ def check_service_transaction_atomic(func: ast.FunctionDef, path: Path):
 
 def check_save_without_full_clean(tree: ast.AST, path: Path):
     for parent in ast.walk(tree):
-        body = getattr(parent, 'body', None)
+        body = getattr(parent, "body", None)
         if not isinstance(body, list):
             continue
         for i, stmt in enumerate(body):
             call = _extract_save_call(stmt)
             if call is None:
                 continue
-            target = call.func.value
+            func = call.func
+            if not isinstance(func, ast.Attribute):
+                continue
+            target = func.value
             if not isinstance(target, ast.Name):
                 continue
-            if target.id in ('self', 'super', 'cls'):
+            if target.id in ("self", "super", "cls"):
                 continue
             if _cleaned_before(body, i, target.id):
                 continue
             yield {
-                'file': str(path),
-                'line': stmt.lineno,
-                'severity': 'low',
-                'issue': (
+                "file": str(path),
+                "line": stmt.lineno,
+                "severity": "low",
+                "issue": (
                     f"'{target.id}.save()' called without prior "
                     f"'{target.id}.full_clean()' "
-                    '(advisory — review if this is a Django model)'
+                    "(advisory — review if this is a Django model)"
                 ),
             }
 
 
 def _extract_save_call(stmt: ast.stmt) -> ast.Call | None:
-    is_expr_call = isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Call)
-    is_assign_call = isinstance(stmt, ast.Assign) and isinstance(stmt.value, ast.Call)
-    if is_expr_call or is_assign_call:
-        call = stmt.value
-    else:
+    if not isinstance(stmt, (ast.Expr, ast.Assign)) or not isinstance(
+        stmt.value, ast.Call
+    ):
         return None
-    if isinstance(call.func, ast.Attribute) and call.func.attr == 'save':
+    call = stmt.value
+    if isinstance(call.func, ast.Attribute) and call.func.attr == "save":
         return call
     return None
 
 
 def _cleaned_before(body: list, index: int, var_name: str) -> bool:
-    needle = f'{var_name}.full_clean'
+    needle = f"{var_name}.full_clean"
     for prev in body[:index]:
         try:
             if needle in ast.unparse(prev):
@@ -389,7 +392,7 @@ def check_business_logic_in_view(func: ast.FunctionDef, path: Path):
     if func.name not in VIEW_WRITE_METHODS:
         return
     # Size gate: ignore short methods even if score is high
-    end = getattr(func, 'end_lineno', func.lineno)
+    end = getattr(func, "end_lineno", func.lineno)
     if end - func.lineno < 15:
         return
     score = 0
@@ -402,14 +405,14 @@ def check_business_logic_in_view(func: ast.FunctionDef, path: Path):
             and sub.func.attr in ORM_WRITE_METHODS
         ):
             base = sub.func.value
-            if isinstance(base, ast.Name) and base.id not in ('self', 'super', 'cls'):
+            if isinstance(base, ast.Name) and base.id not in ("self", "super", "cls"):
                 score += 3
     if score >= 6:
         yield {
-            'file': str(path),
-            'line': func.lineno,
-            'severity': 'medium',
-            'issue': f"View method '{func.name}' contains business logic — delegate to services.py",
+            "file": str(path),
+            "line": func.lineno,
+            "severity": "medium",
+            "issue": f"View method '{func.name}' contains business logic — delegate to services.py",
         }
 
 
@@ -430,12 +433,12 @@ def class_inherits(cls: ast.ClassDef, *needles: str) -> bool:
 
 
 def check_business_logic_in_form_or_serializer(cls: ast.ClassDef, path: Path):
-    is_form = class_inherits(cls, 'Form')
-    is_serializer = class_inherits(cls, 'Serializer')
+    is_form = class_inherits(cls, "Form")
+    is_serializer = class_inherits(cls, "Serializer")
     if not (is_form or is_serializer):
         return
-    kind = 'Form' if is_form else 'Serializer'
-    target_methods = FORM_WRITE_METHODS if is_form else {'create', 'update', 'save'}
+    kind = "Form" if is_form else "Serializer"
+    target_methods = FORM_WRITE_METHODS if is_form else {"create", "update", "save"}
     for node in cls.body:
         if not isinstance(node, ast.FunctionDef) or node.name not in target_methods:
             continue
@@ -444,15 +447,15 @@ def check_business_logic_in_form_or_serializer(cls: ast.ClassDef, path: Path):
                 continue
             if sub.func.attr in ORM_WRITE_METHODS:
                 base = sub.func.value
-                if isinstance(base, ast.Name) and base.id in ('self', 'super', 'cls'):
+                if isinstance(base, ast.Name) and base.id in ("self", "super", "cls"):
                     continue
                 yield {
-                    'file': str(path),
-                    'line': sub.lineno,
-                    'severity': 'medium',
-                    'issue': (
+                    "file": str(path),
+                    "line": sub.lineno,
+                    "severity": "medium",
+                    "issue": (
                         f"{kind} '{cls.name}.{node.name}()' performs ORM write "
-                        '— move to services.py'
+                        "— move to services.py"
                     ),
                 }
                 break
@@ -465,7 +468,7 @@ def check_business_logic_in_form_or_serializer(cls: ast.ClassDef, path: Path):
 
 def scan_file(path: Path):
     try:
-        tree = ast.parse(path.read_text(encoding='utf-8'))
+        tree = ast.parse(path.read_text(encoding="utf-8"))
     except SyntaxError, UnicodeDecodeError, OSError:
         return
 
@@ -488,9 +491,11 @@ def scan_file(path: Path):
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('path', type=Path)
-    parser.add_argument('--format', choices=('text', 'json'), default='text')
-    parser.add_argument('--min-severity', choices=('low', 'medium', 'high'), default='low')
+    parser.add_argument("path", type=Path)
+    parser.add_argument("--format", choices=("text", "json"), default="text")
+    parser.add_argument(
+        "--min-severity", choices=("low", "medium", "high"), default="low"
+    )
     args = parser.parse_args()
 
     threshold = SEVERITY_RANK[args.min_severity]
@@ -501,34 +506,34 @@ def main() -> int:
         findings.extend(
             finding
             for finding in scan_file(path)
-            if SEVERITY_RANK[finding['severity']] >= threshold
+            if SEVERITY_RANK[finding["severity"]] >= threshold
         )
 
-    if args.format == 'json':
+    if args.format == "json":
         json.dump(findings, sys.stdout, indent=2)
-        sys.stdout.write('\n')
+        sys.stdout.write("\n")
         return 1 if findings else 0
 
     if not findings:
-        print('No HackSoft styleguide violations detected.')
+        print("No HackSoft styleguide violations detected.")
         return 0
 
-    grouped: dict[str, list[dict]] = {'high': [], 'medium': [], 'low': []}
+    grouped: dict[str, list[dict]] = {"high": [], "medium": [], "low": []}
     for f in findings:
-        grouped[f['severity']].append(f)
+        grouped[f["severity"]].append(f)
 
-    for sev in ('high', 'medium', 'low'):
+    for sev in ("high", "medium", "low"):
         items = grouped[sev]
         if not items:
             continue
-        print(f'\n=== {sev.upper()} ({len(items)}) ===')
+        print(f"\n=== {sev.upper()} ({len(items)}) ===")
         for f in items:
-            print(f'  {f["file"]}:{f["line"]}')
-            print(f'      {f["issue"]}')
+            print(f"  {f['file']}:{f['line']}")
+            print(f"      {f['issue']}")
 
-    print(f'\nTotal: {len(findings)} violations')
+    print(f"\nTotal: {len(findings)} violations")
     return 1
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

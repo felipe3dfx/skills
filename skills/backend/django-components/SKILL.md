@@ -356,4 +356,4 @@ bat config/django/base.py            # Check template loader & builtins
 - **Configuration**: `config/settings/django_components.py` — `COMPONENTS.dirs` points to `components/`
 - **Template loader**: `config/django/base.py` — `django_components.template_loader.Loader` in cached loader chain
 - **Builtins**: `django_components.templatetags.component_tags` — auto-loaded, no `{% load %}` needed
-- **Project docs**: `docs/01-architecture.md` (Frontend Architecture section)
+- **Project docs**: start with `docs/agents/AGENTS.md` as the agent-facing router for repo conventions; follow the project-specific frontend architecture or component guide it points to.

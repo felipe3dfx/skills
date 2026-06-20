@@ -254,5 +254,4 @@ Full HTMX attribute reference: see [references/htmx-attributes.md](./references/
 ## Resources
 
 - **Project mixins**: `apps/core/mixins.py` — `HTMXRequestMixin`, `HTMXFilterMixin`, `DashboardMixin`
-- **Project docs**: `docs/03-common-patterns.md` — HTMX integration patterns
-- **Project docs**: `docs/02-coding-standards.md` — `js-` prefix convention
+- **Project docs**: start with `docs/agents/AGENTS.md` as the agent-facing router for repo conventions; follow the project-specific HTMX or JavaScript guide it points to for integration patterns and `js-` prefix rules.

@@ -292,4 +292,4 @@ Plugins used: `@alpinejs/collapse` (height transitions), `@alpinejs/mask` (input
 
 - **Project bootstrap**: `ax3Common` in `apps/core/static/js/common/index.js`
 - **Shared components**: `Alpine.data()` registrations in `apps/core/static/js/utils/extend-alpine.js`
-- **Coding standards**: `docs/02-coding-standards.md` (js- prefix rules)
+- **Project docs**: start with `docs/agents/AGENTS.md` as the agent-facing router for repo conventions; follow the project-specific JavaScript or frontend guide it points to for `js-` prefix rules.

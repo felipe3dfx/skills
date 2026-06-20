@@ -17,10 +17,10 @@ if TYPE_CHECKING:
 
 # Filename/directory patterns that indicate test infrastructure — scanning these
 # produces nearly-all false positives for .get() / .count() usage checks.
-_TEST_FILENAME_SUFFIXES = ('_tests.py', '_test.py')
-_TEST_FILENAME_PREFIXES = ('test_',)
-_TEST_DIR_NAMES = {'tests', 'test'}
-_TEST_EXACT_NAMES = {'conftest.py', 'factories.py'}
+_TEST_FILENAME_SUFFIXES = ("_tests.py", "_test.py")
+_TEST_FILENAME_PREFIXES = ("test_",)
+_TEST_DIR_NAMES = {"tests", "test"}
+_TEST_EXACT_NAMES = {"conftest.py", "factories.py"}
 
 
 def _is_test_path(path: Path) -> bool:
@@ -31,9 +31,7 @@ def _is_test_path(path: Path) -> bool:
         return True
     if any(name.startswith(p) for p in _TEST_FILENAME_PREFIXES):
         return True
-    if any(part in _TEST_DIR_NAMES for part in path.parts):
-        return True
-    return False
+    return any(part in _TEST_DIR_NAMES for part in path.parts)
 
 
 @dataclass
@@ -60,7 +58,7 @@ class DjangoDetector(ast.NodeVisitor):
         issue_type: str,
         desc: str,
         suggestion: str,
-        severity: str = 'medium',
+        severity: str = "medium",
     ):
         self.issues.append(
             DjangoIssue(
@@ -90,15 +88,15 @@ class DjangoDetector(ast.NodeVisitor):
         self.current_function = node.name
 
         # Fat view detection
-        if hasattr(node, 'end_lineno') and node.end_lineno:
+        if hasattr(node, "end_lineno") and node.end_lineno:
             lines = node.end_lineno - node.lineno
-            if lines > 100 and any(arg.arg == 'request' for arg in node.args.args):
+            if lines > 100 and any(arg.arg == "request" for arg in node.args.args):
                 self._add(
                     node.lineno,
-                    'fat_view',
-                    f'View {node.name} is {lines} lines - too complex',
-                    'Extract business logic to services/models',
-                    'high',
+                    "fat_view",
+                    f"View {node.name} is {lines} lines - too complex",
+                    "Extract business logic to services/models",
+                    "high",
                 )
 
         self.generic_visit(node)
@@ -109,73 +107,73 @@ class DjangoDetector(ast.NodeVisitor):
             attr = node.func.attr
 
             # save() in loop
-            if attr == 'save' and self.in_loop:
+            if attr == "save" and self.in_loop:
                 self._add(
                     node.lineno,
-                    'save_in_loop',
-                    '.save() inside loop causes N writes',
-                    'Use bulk_update() or bulk_create()',
-                    'high',
+                    "save_in_loop",
+                    ".save() inside loop causes N writes",
+                    "Use bulk_update() or bulk_create()",
+                    "high",
                 )
 
             # delete() in loop
-            if attr == 'delete' and self.in_loop:
+            if attr == "delete" and self.in_loop:
                 self._add(
                     node.lineno,
-                    'delete_in_loop',
-                    '.delete() inside loop',
-                    'Use QuerySet.filter().delete()',
-                    'high',
+                    "delete_in_loop",
+                    ".delete() inside loop",
+                    "Use QuerySet.filter().delete()",
+                    "high",
                 )
 
             # create() in loop
-            if attr == 'create' and self.in_loop:
+            if attr == "create" and self.in_loop:
                 self._add(
                     node.lineno,
-                    'create_in_loop',
-                    '.create() inside loop causes N inserts',
-                    'Collect and use bulk_create()',
-                    'high',
+                    "create_in_loop",
+                    ".create() inside loop causes N inserts",
+                    "Collect and use bulk_create()",
+                    "high",
                 )
 
             # N+1 risk
-            if attr == 'all':
+            if attr == "all":
                 self._add(
                     node.lineno,
-                    'n_plus_one_risk',
-                    'QuerySet.all() - ensure related objects are prefetched',
-                    'Use select_related() or prefetch_related()',
-                    'low',
+                    "n_plus_one_risk",
+                    "QuerySet.all() - ensure related objects are prefetched",
+                    "Use select_related() or prefetch_related()",
+                    "low",
                 )
 
             # Hardcoded URLs
-            if attr in ('redirect', 'HttpResponseRedirect') and node.args:
+            if attr in ("redirect", "HttpResponseRedirect") and node.args:
                 arg = node.args[0]
                 if (
                     isinstance(arg, ast.Constant)
                     and isinstance(arg.value, str)
-                    and arg.value.startswith('/')
+                    and arg.value.startswith("/")
                 ):
                     self._add(
                         node.lineno,
-                        'hardcoded_url',
-                        f'Hardcoded URL: {arg.value}',
-                        'Use reverse() with URL name',
-                        'medium',
+                        "hardcoded_url",
+                        f"Hardcoded URL: {arg.value}",
+                        "Use reverse() with URL name",
+                        "medium",
                     )
 
             # .get() without try/except
             if (
-                attr == 'get'
+                attr == "get"
                 and isinstance(node.func.value, ast.Attribute)
-                and node.func.value.attr == 'objects'
+                and node.func.value.attr == "objects"
             ):
                 self._add(
                     node.lineno,
-                    'unhandled_doesnotexist',
-                    '.get() may raise DoesNotExist',
-                    'Use get_object_or_404() or try/except',
-                    'low',
+                    "unhandled_doesnotexist",
+                    ".get() may raise DoesNotExist",
+                    "Use get_object_or_404() or try/except",
+                    "low",
                 )
 
         self.generic_visit(node)
@@ -184,14 +182,17 @@ class DjangoDetector(ast.NodeVisitor):
         if (
             self.in_loop
             and isinstance(node.value, ast.Attribute)
-            and (node.value.attr.endswith('_set') or node.attr in ('all', 'filter', 'exclude'))
+            and (
+                node.value.attr.endswith("_set")
+                or node.attr in ("all", "filter", "exclude")
+            )
         ):
             self._add(
                 node.lineno,
-                'query_in_loop',
-                f'QuerySet access (.{node.attr}) in loop - potential N+1',
-                'Use prefetch_related() before the loop',
-                'high',
+                "query_in_loop",
+                f"QuerySet access (.{node.attr}) in loop - potential N+1",
+                "Use prefetch_related() before the loop",
+                "high",
             )
         self.generic_visit(node)
 
@@ -199,31 +200,31 @@ class DjangoDetector(ast.NodeVisitor):
 def check_template(filepath: Path) -> list[DjangoIssue]:
     issues = []
     with contextlib.suppress(OSError, UnicodeDecodeError):
-        content = filepath.read_text(encoding='utf-8', errors='replace')
+        content = filepath.read_text(encoding="utf-8", errors="replace")
         lines = content.splitlines()
 
         for i, line in enumerate(lines, 1):
-            if '.objects.' in line:
+            if ".objects." in line:
                 issues.append(
                     DjangoIssue(
                         file=str(filepath),
                         line=i,
-                        issue_type='template_query',
-                        description='Database query in template',
-                        suggestion='Move query to view, pass in context',
-                        severity='high',
+                        issue_type="template_query",
+                        description="Database query in template",
+                        suggestion="Move query to view, pass in context",
+                        severity="high",
                     )
                 )
 
-            if line.count('{%') > 3:
+            if line.count("{%") > 3:
                 issues.append(
                     DjangoIssue(
                         file=str(filepath),
                         line=i,
-                        issue_type='template_logic',
-                        description='Complex logic in template',
-                        suggestion='Move logic to view or template tag',
-                        severity='medium',
+                        issue_type="template_logic",
+                        description="Complex logic in template",
+                        suggestion="Move logic to view or template tag",
+                        severity="medium",
                     )
                 )
     return issues
@@ -231,10 +232,10 @@ def check_template(filepath: Path) -> list[DjangoIssue]:
 
 def analyze_file(filepath: Path) -> list[DjangoIssue]:
     try:
-        source = filepath.read_text(encoding='utf-8', errors='replace')
+        source = filepath.read_text(encoding="utf-8", errors="replace")
     except OSError, UnicodeDecodeError:
         return []
-    if 'django' not in source.lower() and 'models' not in source:
+    if "django" not in source.lower() and "models" not in source:
         return []
     try:
         tree = ast.parse(source, filename=str(filepath))
@@ -246,73 +247,90 @@ def analyze_file(filepath: Path) -> list[DjangoIssue]:
     return detector.issues
 
 
-def find_files(path: Path, include_tests: bool = False) -> Iterator[tuple[Path, str]]:
+def find_files(
+    path: Path, *, include_tests: bool = False
+) -> Iterator[tuple[Path, str]]:
     if path.is_file():
-        if path.suffix == '.py':
-            yield path, 'python'
-        elif path.suffix == '.html':
-            yield path, 'template'
+        if path.suffix == ".py":
+            yield path, "python"
+        elif path.suffix == ".html":
+            yield path, "template"
     elif path.is_dir():
         excluded = 0
-        for p in path.rglob('*.py'):
-            if '.venv' in p.parts or 'node_modules' in p.parts:
+        for p in path.rglob("*.py"):
+            if ".venv" in p.parts or "node_modules" in p.parts:
                 continue
             if not include_tests and _is_test_path(p):
                 excluded += 1
                 continue
-            yield p, 'python'
+            yield p, "python"
         if excluded:
-            print(f'[django-issues] Skipped {excluded} test file(s). Pass --include-tests to scan them.', file=sys.stderr)
-        for p in path.rglob('*.html'):
-            if '.venv' not in p.parts and 'templates' in p.parts:
-                yield p, 'template'
+            print(
+                f"[django-issues] Skipped {excluded} test file(s). "
+                "Pass --include-tests to scan them.",
+                file=sys.stderr,
+            )
+        for p in path.rglob("*.html"):
+            if ".venv" not in p.parts and "templates" in p.parts:
+                yield p, "template"
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Detect Django issues')
-    parser.add_argument('path', nargs='?', default='.', help='File or directory')
-    parser.add_argument('--format', choices=['text', 'json'], default='text')
-    parser.add_argument('--min-severity', choices=['low', 'medium', 'high'], default='low')
-    parser.add_argument('--include-tests', action='store_true', default=False, help='Include test files in scan')
+    parser = argparse.ArgumentParser(description="Detect Django issues")
+    parser.add_argument("path", nargs="?", default=".", help="File or directory")
+    parser.add_argument("--format", choices=["text", "json"], default="text")
+    parser.add_argument(
+        "--min-severity", choices=["low", "medium", "high"], default="low"
+    )
+    parser.add_argument(
+        "--include-tests",
+        action="store_true",
+        default=False,
+        help="Include test files in scan",
+    )
 
     args = parser.parse_args()
-    severity_order = {'low': 0, 'medium': 1, 'high': 2}
+    severity_order = {"low": 0, "medium": 1, "high": 2}
     min_sev = severity_order[args.min_severity]
 
     all_issues = []
-    for filepath, ftype in find_files(Path(args.path), include_tests=args.include_tests):
-        if ftype == 'python':
+    for filepath, ftype in find_files(
+        Path(args.path), include_tests=args.include_tests
+    ):
+        if ftype == "python":
             all_issues.extend(analyze_file(filepath))
         else:
             all_issues.extend(check_template(filepath))
 
     all_issues = [i for i in all_issues if severity_order[i.severity] >= min_sev]
-    all_issues.sort(key=lambda x: (x.severity != 'high', x.severity != 'medium', x.file, x.line))
+    all_issues.sort(
+        key=lambda x: (x.severity != "high", x.severity != "medium", x.file, x.line)
+    )
 
-    if args.format == 'json':
+    if args.format == "json":
         print(json.dumps([asdict(i) for i in all_issues], indent=2))
     else:
         if not all_issues:
-            print('✅ No Django issues found!')
+            print("✅ No Django issues found!")
             return
 
         by_type = defaultdict(int)
         for issue in all_issues:
             by_type[issue.issue_type] += 1
 
-        print(f'Found {len(all_issues)} Django issue(s):\n')
-        print('Summary:')
+        print(f"Found {len(all_issues)} Django issue(s):\n")
+        print("Summary:")
         for t, c in sorted(by_type.items(), key=lambda x: -x[1]):
-            print(f'  {t}: {c}')
+            print(f"  {t}: {c}")
         print()
 
-        severity_icons = {'high': '🔴', 'medium': '🟡', 'low': '🟢'}
+        severity_icons = {"high": "🔴", "medium": "🟡", "low": "🟢"}
         for issue in all_issues:
             icon = severity_icons[issue.severity]
-            print(f'{icon} [{issue.severity.upper()}] {issue.file}:{issue.line}')
-            print(f'   {issue.issue_type}: {issue.description}')
-            print(f'   → {issue.suggestion}\n')
+            print(f"{icon} [{issue.severity.upper()}] {issue.file}:{issue.line}")
+            print(f"   {issue.issue_type}: {issue.description}")
+            print(f"   → {issue.suggestion}\n")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

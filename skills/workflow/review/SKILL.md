@@ -17,7 +17,8 @@ Review pull requests as an orchestrator, not a rules container:
 
 This skill delegates domain rules to available project skills (`django-expert`,
 `django-pytest`, `htmx`, `huey`, `django-simplify`, `simplify`, `tailwind-4`,
-`alpinejs`, `django-components`) and project docs (`AGENTS.md`, `docs/`).
+`alpinejs`, `django-components`) and project docs (`AGENTS.md`,
+`docs/agents/AGENTS.md`, `docs/`).
 One source of truth per domain — no duplication here. If a relevant skill is
 not installed, fall back to the repository docs and current code instead of
 inventing a missing skill requirement.
@@ -42,12 +43,10 @@ If no Linear ID is present in the title, ask the user for the problem context
 before proceeding. Do not start a review without understanding what the PR
 is supposed to solve.
 
-**Read `AGENTS.md`** at the repo root for the project map. Read the relevant
-files under `docs/` based on what the PR touches:
-- `docs/01-architecture.md` — for structural or layering concerns
-- `docs/02-coding-standards.md` — for style or convention questions
-- `docs/03-common-patterns.md` — for services, managers, and view patterns
-- `docs/05-testing-standards.md` — when the PR changes tests
+**Read `AGENTS.md`** at the repo root for the project map. Then prefer
+`docs/agents/AGENTS.md` as the agent-facing bootstrap/router for repo
+conventions. Follow the project-specific guides it points to for structural,
+style, pattern, and testing concerns based on what the PR touches.
 
 **Previous review rounds**: If prior reviews exist, read all comments and
 verify each was addressed in the actual code — not just replied to in the
@@ -123,7 +122,8 @@ with `AGENTS.md`, `docs/`, and current code evidence.
 | `tests/e2e/**/*.py`, `tests/e2e/**/*.ts` | available e2e/browser-testing guidance or manual review |
 
 For any Python change, always additionally apply the project-wide coding
-standards from `docs/02-coding-standards.md`.
+standards routed from `docs/agents/AGENTS.md` or the repo's equivalent
+agent-facing project documentation router.
 
 ### Test review quality
 

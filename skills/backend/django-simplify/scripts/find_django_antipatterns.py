@@ -6,6 +6,7 @@ import argparse
 import ast
 import contextlib
 import json
+import re
 import sys
 from collections import defaultdict
 from dataclasses import asdict, dataclass
@@ -16,10 +17,10 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
 # Filename/directory patterns that indicate test infrastructure.
-_TEST_FILENAME_SUFFIXES = ('_tests.py', '_test.py')
-_TEST_FILENAME_PREFIXES = ('test_',)
-_TEST_DIR_NAMES = {'tests', 'test'}
-_TEST_EXACT_NAMES = {'conftest.py', 'factories.py'}
+_TEST_FILENAME_SUFFIXES = ("_tests.py", "_test.py")
+_TEST_FILENAME_PREFIXES = ("test_",)
+_TEST_DIR_NAMES = {"tests", "test"}
+_TEST_EXACT_NAMES = {"conftest.py", "factories.py"}
 
 
 def _is_test_path(path: Path) -> bool:
@@ -30,9 +31,7 @@ def _is_test_path(path: Path) -> bool:
         return True
     if any(name.startswith(p) for p in _TEST_FILENAME_PREFIXES):
         return True
-    if any(part in _TEST_DIR_NAMES for part in path.parts):
-        return True
-    return False
+    return any(part in _TEST_DIR_NAMES for part in path.parts)
 
 
 @dataclass
@@ -47,7 +46,9 @@ class DjangoAntiPattern:
 
 
 class DjangoAntiPatternDetector(ast.NodeVisitor):
-    def __init__(self, filename: str, source_lines: list[str], parent_map: dict | None = None):
+    def __init__(
+        self, filename: str, source_lines: list[str], parent_map: dict | None = None
+    ):
         self.filename = filename
         self.source_lines = source_lines
         self.issues: list[DjangoAntiPattern] = []
@@ -101,18 +102,18 @@ class DjangoAntiPatternDetector(ast.NodeVisitor):
         old_func, old_queries = self.current_function, self.function_queries
         self.current_function = node.name
         self.function_queries = 0
-        is_view = any(arg.arg == 'request' for arg in node.args.args)
+        is_view = any(arg.arg == "request" for arg in node.args.args)
 
         self.generic_visit(node)
 
         if self.function_queries > 5 and is_view:
             self._add(
                 node.lineno,
-                'excessive_queries',
+                "excessive_queries",
                 f"View '{node.name}' performs {self.function_queries}+ queries",
-                'Consolidate queries, use select_related/prefetch_related',
-                'medium',
-                'performance',
+                "Consolidate queries, use select_related/prefetch_related",
+                "medium",
+                "performance",
             )
 
         self.current_function, self.function_queries = old_func, old_queries
@@ -122,11 +123,11 @@ class DjangoAntiPatternDetector(ast.NodeVisitor):
         self.current_class = node.name
         bases = [self._get_name(b) for b in node.bases]
 
-        if any('Model' in str(b) for b in bases):
+        if any("Model" in str(b) for b in bases):
             self._check_model(node)
-        if any(v in str(b) for b in bases for v in ['View', 'ViewSet', 'APIView']):
+        if any(v in str(b) for b in bases for v in ["View", "ViewSet", "APIView"]):
             self._check_view_class(node)
-        if any('Form' in str(b) for b in bases):
+        if any("Form" in str(b) for b in bases):
             self._check_form(node)
 
         self.generic_visit(node)
@@ -134,80 +135,84 @@ class DjangoAntiPatternDetector(ast.NodeVisitor):
 
     def _check_model(self, node: ast.ClassDef):
         methods = [
-            n.name for n in node.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+            n.name
+            for n in node.body
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
         ]
         fields = [
             n.targets[0].id
             for n in node.body
-            if isinstance(n, ast.Assign) and n.targets and isinstance(n.targets[0], ast.Name)
+            if isinstance(n, ast.Assign)
+            and n.targets
+            and isinstance(n.targets[0], ast.Name)
         ]
 
-        if '__str__' not in methods and fields:
+        if "__str__" not in methods and fields:
             self._add(
                 node.lineno,
-                'missing_str_method',
+                "missing_str_method",
                 f"Model '{node.name}' lacks __str__ method",
-                'Add __str__ for better admin/debug display',
-                'low',
-                'model',
+                "Add __str__ for better admin/debug display",
+                "low",
+                "model",
             )
 
-        non_dunder = [m for m in methods if not m.startswith('_')]
+        non_dunder = [m for m in methods if not m.startswith("_")]
         if len(non_dunder) > 15:
             self._add(
                 node.lineno,
-                'fat_model',
+                "fat_model",
                 f"Model '{node.name}' has {len(non_dunder)} methods",
-                'Extract to service layer or mixins',
-                'medium',
-                'model',
+                "Extract to service layer or mixins",
+                "medium",
+                "model",
             )
 
         if len(fields) > 20:
             self._add(
                 node.lineno,
-                'too_many_fields',
+                "too_many_fields",
                 f"Model '{node.name}' has {len(fields)} fields",
-                'Consider splitting into related models',
-                'low',
-                'model',
+                "Consider splitting into related models",
+                "low",
+                "model",
             )
 
     def _check_view_class(self, node: ast.ClassDef):
         for item in node.body:
             if (
                 isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))
-                and hasattr(item, 'end_lineno')
+                and hasattr(item, "end_lineno")
                 and item.end_lineno
             ):
                 lines = item.end_lineno - item.lineno
                 if lines > 50:
                     self._add(
                         item.lineno,
-                        'fat_view_method',
+                        "fat_view_method",
                         f"View method '{item.name}' is {lines} lines",
-                        'Extract logic to model or service',
-                        'medium',
-                        'view',
+                        "Extract logic to model or service",
+                        "medium",
+                        "view",
                     )
 
     def _check_form(self, node: ast.ClassDef):
         for item in node.body:
-            if isinstance(item, ast.FunctionDef) and item.name == 'clean':
+            if isinstance(item, ast.FunctionDef) and item.name == "clean":
                 for stmt in ast.walk(item):
                     if isinstance(stmt, ast.Attribute) and stmt.attr in (
-                        'filter',
-                        'get',
-                        'exists',
-                        'all',
+                        "filter",
+                        "get",
+                        "exists",
+                        "all",
                     ):
                         self._add(
                             item.lineno,
-                            'query_in_form_clean',
-                            'Database query in form clean()',
-                            'Move validation queries to view',
-                            'low',
-                            'form',
+                            "query_in_form_clean",
+                            "Database query in form clean()",
+                            "Move validation queries to view",
+                            "low",
+                            "form",
                         )
                         return
 
@@ -216,124 +221,124 @@ class DjangoAntiPatternDetector(ast.NodeVisitor):
             attr = node.func.attr
 
             if attr in (
-                'filter',
-                'get',
-                'all',
-                'exclude',
-                'annotate',
-                'create',
-                'update',
-                'delete',
+                "filter",
+                "get",
+                "all",
+                "exclude",
+                "annotate",
+                "create",
+                "update",
+                "delete",
             ):
                 self.function_queries += 1
 
-            if attr == 'all' and self.current_function:
+            if attr == "all" and self.current_function:
                 self._add(
                     node.lineno,
-                    'unbounded_queryset',
-                    'QuerySet.all() without limit',
-                    'Add [:limit] or use pagination',
-                    'low',
-                    'query',
+                    "unbounded_queryset",
+                    "QuerySet.all() without limit",
+                    "Add [:limit] or use pagination",
+                    "low",
+                    "query",
                 )
 
-            if attr == 'count' and self._count_used_as_boolean(node):
+            if attr == "count" and self._count_used_as_boolean(node):
                 self._add(
                     node.lineno,
-                    'count_vs_exists',
-                    '.count() - use .exists() if just checking presence',
-                    'Use .exists() for boolean checks',
-                    'low',
-                    'query',
+                    "count_vs_exists",
+                    ".count() - use .exists() if just checking presence",
+                    "Use .exists() for boolean checks",
+                    "low",
+                    "query",
                 )
 
-            if attr == 'save' and self.in_loop:
+            if attr == "save" and self.in_loop:
                 self._add(
                     node.lineno,
-                    'save_in_loop',
-                    '.save() in loop causes N writes',
-                    'Use bulk_update() or bulk_create()',
-                    'high',
-                    'performance',
+                    "save_in_loop",
+                    ".save() in loop causes N writes",
+                    "Use bulk_update() or bulk_create()",
+                    "high",
+                    "performance",
                 )
 
-            if attr == 'create' and self.in_loop:
+            if attr == "create" and self.in_loop:
                 self._add(
                     node.lineno,
-                    'create_in_loop',
-                    '.create() in loop causes N inserts',
-                    'Use bulk_create()',
-                    'high',
-                    'performance',
+                    "create_in_loop",
+                    ".create() in loop causes N inserts",
+                    "Use bulk_create()",
+                    "high",
+                    "performance",
                 )
 
-            if attr == 'delete' and self.in_loop:
+            if attr == "delete" and self.in_loop:
                 self._add(
                     node.lineno,
-                    'delete_in_loop',
-                    '.delete() in loop',
-                    'Use QuerySet.filter().delete()',
-                    'high',
-                    'performance',
+                    "delete_in_loop",
+                    ".delete() in loop",
+                    "Use QuerySet.filter().delete()",
+                    "high",
+                    "performance",
                 )
 
-            if attr == 'update':
+            if attr == "update":
                 self._check_update_without_f(node)
 
             if (
-                attr in ('redirect', 'HttpResponseRedirect')
+                attr in ("redirect", "HttpResponseRedirect")
                 and node.args
                 and isinstance(node.args[0], ast.Constant)
                 and isinstance(node.args[0].value, str)
-                and node.args[0].value.startswith('/')
+                and node.args[0].value.startswith("/")
             ):
                 self._add(
                     node.lineno,
-                    'hardcoded_url',
-                    f'Hardcoded URL: {node.args[0].value[:30]}',
-                    'Use reverse() with URL name',
-                    'medium',
-                    'view',
+                    "hardcoded_url",
+                    f"Hardcoded URL: {node.args[0].value[:30]}",
+                    "Use reverse() with URL name",
+                    "medium",
+                    "view",
                 )
 
-            if attr == 'mark_safe':
+            if attr == "mark_safe":
                 self._add(
                     node.lineno,
-                    'mark_safe_usage',
-                    'Using mark_safe() - ensure input is sanitized',
-                    'Use format_html() for safe HTML',
-                    'medium',
-                    'security',
+                    "mark_safe_usage",
+                    "Using mark_safe() - ensure input is sanitized",
+                    "Use format_html() for safe HTML",
+                    "medium",
+                    "security",
                 )
 
-            if attr == 'raw':
+            if attr == "raw":
                 self._add(
                     node.lineno,
-                    'raw_sql',
-                    'Using raw SQL',
-                    'Prefer ORM unless performance-critical',
-                    'low',
-                    'query',
+                    "raw_sql",
+                    "Using raw SQL",
+                    "Prefer ORM unless performance-critical",
+                    "low",
+                    "query",
                 )
 
-            if attr == 'extra':
+            if attr == "extra":
                 self._add(
                     node.lineno,
-                    'deprecated_extra',
-                    'Using deprecated .extra()',
-                    'Use annotate() with F(), Case, When',
-                    'medium',
-                    'query',
+                    "deprecated_extra",
+                    "Using deprecated .extra()",
+                    "Use annotate() with F(), Case, When",
+                    "medium",
+                    "query",
                 )
 
-        if isinstance(node.func, ast.Name) and node.func.id in ('eval', 'exec'):
+        if isinstance(node.func, ast.Name) and node.func.id in ("eval", "exec"):
             self._add(
                 node.lineno,
-                'eval_exec_usage',
-                f'Using {node.func.id}() - security risk',
-                'Avoid eval/exec',
-                'high',
-                'security',
+                "eval_exec_usage",
+                f"Using {node.func.id}() - security risk",
+                "Avoid eval/exec",
+                "high",
+                "security",
             )
 
         self.generic_visit(node)
@@ -368,7 +373,10 @@ class DjangoAntiPatternDetector(ast.NodeVisitor):
                     if isinstance(comp, ast.Constant) and comp.value in (0, 1):
                         return True
                 # Also flag if compared directly to another integer literal
-                if isinstance(parent.left, ast.Constant) and parent.left.value in (0, 1):
+                if isinstance(parent.left, ast.Constant) and parent.left.value in (
+                    0,
+                    1,
+                ):
                     return True
         return False
 
@@ -377,38 +385,38 @@ class DjangoAntiPatternDetector(ast.NodeVisitor):
             if isinstance(kw.value, ast.BinOp):
                 self._add(
                     node.lineno,
-                    'update_without_f',
-                    'Update with arithmetic - use F() expression',
+                    "update_without_f",
+                    "Update with arithmetic - use F() expression",
                     "Use F('field') + 1 to avoid race conditions",
-                    'medium',
-                    'query',
+                    "medium",
+                    "query",
                 )
                 return
 
     def visit_Assign(self, node: ast.Assign):
         for target in node.targets:
             if isinstance(target, ast.Name):
-                if target.id == 'SECRET_KEY' and isinstance(node.value, ast.Constant):
+                if target.id == "SECRET_KEY" and isinstance(node.value, ast.Constant):
                     self._add(
                         node.lineno,
-                        'hardcoded_secret',
-                        'SECRET_KEY hardcoded',
-                        'Use environment variable',
-                        'high',
-                        'security',
+                        "hardcoded_secret",
+                        "SECRET_KEY hardcoded",
+                        "Use environment variable",
+                        "high",
+                        "security",
                     )
                 if (
-                    target.id == 'DEBUG'
+                    target.id == "DEBUG"
                     and isinstance(node.value, ast.Constant)
                     and node.value.value is True
                 ):
                     self._add(
                         node.lineno,
-                        'debug_true',
-                        'DEBUG = True in code',
-                        'Use environment variable',
-                        'medium',
-                        'security',
+                        "debug_true",
+                        "DEBUG = True in code",
+                        "Use environment variable",
+                        "medium",
+                        "security",
                     )
         self.generic_visit(node)
 
@@ -422,24 +430,41 @@ class DjangoAntiPatternDetector(ast.NodeVisitor):
 
 # Template tags that are purely presentational / loop-control and should not
 # count as "complex logic" when deciding whether a line is over-engineered.
-_PRESENTATION_TAGS = frozenset({
-    'if', 'elif', 'else', 'endif',
-    'for', 'endfor', 'empty',
-    'block', 'endblock',
-    'extends', 'include', 'load', 'with', 'endwith',
-    'comment', 'endcomment',
-    'csrf_token', 'url', 'static',
-    'trans', 'blocktrans', 'endblocktrans',
-})
+_PRESENTATION_TAGS = frozenset(
+    {
+        "if",
+        "elif",
+        "else",
+        "endif",
+        "for",
+        "endfor",
+        "empty",
+        "block",
+        "endblock",
+        "extends",
+        "include",
+        "load",
+        "with",
+        "endwith",
+        "comment",
+        "endcomment",
+        "csrf_token",
+        "url",
+        "static",
+        "trans",
+        "blocktrans",
+        "endblocktrans",
+    }
+)
 
 
 def _is_presentation_tag(tag_text: str) -> bool:
     """Return True if the tag content references only loop/forloop/presentation tags."""
     stripped = tag_text.strip()
     # forloop.* variable references or simple presentation tags
-    if 'forloop.' in stripped:
+    if "forloop." in stripped:
         return True
-    first_word = stripped.split()[0] if stripped.split() else ''
+    first_word = stripped.split()[0] if stripped.split() else ""
     return first_word in _PRESENTATION_TAGS
 
 
@@ -448,12 +473,11 @@ def _is_complex_template_line(line: str) -> bool:
     is non-presentation (i.e. contains real logic like custom filters or
     complex with-clauses that aren't just loop-control tags).
     """
-    tag_count = line.count('{%')
+    tag_count = line.count("{%")
     if tag_count <= 3:
         return False
     # Extract tag bodies between {% and %}
-    import re
-    tags = re.findall(r'\{%[-\s]*(.*?)[-\s]*%\}', line)
+    tags = re.findall(r"\{%[-\s]*(.*?)[-\s]*%\}", line)
     non_presentation = [t for t in tags if not _is_presentation_tag(t)]
     return len(non_presentation) >= 1
 
@@ -461,20 +485,20 @@ def _is_complex_template_line(line: str) -> bool:
 def check_template(filepath: Path) -> list[DjangoAntiPattern]:
     issues = []
     with contextlib.suppress(OSError, UnicodeDecodeError):
-        content = filepath.read_text(encoding='utf-8', errors='replace')
+        content = filepath.read_text(encoding="utf-8", errors="replace")
         lines = content.splitlines()
 
         for i, line in enumerate(lines, 1):
-            if '.objects.' in line or '.filter(' in line:
+            if ".objects." in line or ".filter(" in line:
                 issues.append(
                     DjangoAntiPattern(
                         file=str(filepath),
                         line=i,
-                        pattern_type='template_query',
-                        description='Database query in template',
-                        suggestion='Move query to view',
-                        severity='high',
-                        category='query',
+                        pattern_type="template_query",
+                        description="Database query in template",
+                        suggestion="Move query to view",
+                        severity="high",
+                        category="query",
                     )
                 )
 
@@ -483,27 +507,35 @@ def check_template(filepath: Path) -> list[DjangoAntiPattern]:
                     DjangoAntiPattern(
                         file=str(filepath),
                         line=i,
-                        pattern_type='template_logic',
-                        description='Complex logic in template',
-                        suggestion='Move to view or template tag',
-                        severity='medium',
-                        category='view',
+                        pattern_type="template_logic",
+                        description="Complex logic in template",
+                        suggestion="Move to view or template tag",
+                        severity="medium",
+                        category="view",
                     )
                 )
 
-            if '|safe' in line:
+            if "|safe" in line:
                 issues.append(
                     DjangoAntiPattern(
                         file=str(filepath),
                         line=i,
-                        pattern_type='template_safe_filter',
-                        description='Using |safe filter',
-                        suggestion='Verify input is sanitized',
-                        severity='medium',
-                        category='security',
+                        pattern_type="template_safe_filter",
+                        description="Using |safe filter",
+                        suggestion="Verify input is sanitized",
+                        severity="medium",
+                        category="security",
                     )
                 )
     return issues
+
+
+def _is_include_call(node: ast.AST) -> bool:
+    return (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, (ast.Name, ast.Attribute))
+        and getattr(node.func, "id", getattr(node.func, "attr", "")) == "include"
+    )
 
 
 def check_urls(filepath: Path) -> list[DjangoAntiPattern]:
@@ -515,7 +547,7 @@ def check_urls(filepath: Path) -> list[DjangoAntiPattern]:
     """
     issues = []
     with contextlib.suppress(OSError, UnicodeDecodeError, SyntaxError, ValueError):
-        source = filepath.read_text(encoding='utf-8', errors='replace')
+        source = filepath.read_text(encoding="utf-8", errors="replace")
         tree = ast.parse(source, filename=str(filepath))
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
@@ -528,28 +560,23 @@ def check_urls(filepath: Path) -> list[DjangoAntiPattern]:
                 func_name = func.attr
             else:
                 continue
-            if func_name not in ('path', 're_path', 'url'):
+            if func_name not in ("path", "re_path", "url"):
                 continue
             # Skip include() wrappers — the first argument might itself be an include()
-            if any(
-                isinstance(arg, ast.Call)
-                and isinstance(getattr(arg.func, 'id', None) or getattr(arg.func, 'attr', None), str)
-                and (getattr(arg.func, 'id', '') == 'include' or getattr(arg.func, 'attr', '') == 'include')
-                for arg in node.args
-            ):
+            if any(_is_include_call(arg) for arg in node.args):
                 continue
             # Check whether any keyword arg is named 'name'
-            has_name = any(kw.arg == 'name' for kw in node.keywords)
+            has_name = any(kw.arg == "name" for kw in node.keywords)
             if not has_name:
                 issues.append(
                     DjangoAntiPattern(
                         file=str(filepath),
                         line=node.lineno,
-                        pattern_type='url_without_name',
-                        description='URL pattern without name',
+                        pattern_type="url_without_name",
+                        description="URL pattern without name",
                         suggestion="Add name='...' for reverse()",
-                        severity='low',
-                        category='view',
+                        severity="low",
+                        category="view",
                     )
                 )
     return issues
@@ -566,63 +593,80 @@ def _build_parent_map(tree: ast.AST) -> dict:
 
 def analyze_file(filepath: Path) -> list[DjangoAntiPattern]:
     try:
-        source = filepath.read_text(encoding='utf-8', errors='replace')
+        source = filepath.read_text(encoding="utf-8", errors="replace")
     except OSError, UnicodeDecodeError:
         return []
-    if 'django' not in source.lower() and 'models' not in source:
+    if "django" not in source.lower() and "models" not in source:
         return []
     try:
         tree = ast.parse(source, filename=str(filepath))
     except SyntaxError, ValueError:
         return []
     parent_map = _build_parent_map(tree)
-    detector = DjangoAntiPatternDetector(str(filepath), source.splitlines(), parent_map=parent_map)
+    detector = DjangoAntiPatternDetector(
+        str(filepath), source.splitlines(), parent_map=parent_map
+    )
     detector.visit(tree)
     return detector.issues
 
 
-def find_files(path: Path, include_tests: bool = False) -> Iterator[tuple[Path, str]]:
+def find_files(
+    path: Path, *, include_tests: bool = False
+) -> Iterator[tuple[Path, str]]:
     if path.is_file():
-        if path.suffix == '.py':
-            yield path, 'python'
-        elif path.suffix == '.html':
-            yield path, 'template'
+        if path.suffix == ".py":
+            yield path, "python"
+        elif path.suffix == ".html":
+            yield path, "template"
     elif path.is_dir():
         excluded = 0
-        for p in path.rglob('*.py'):
-            if '.venv' in p.parts or 'node_modules' in p.parts:
+        for p in path.rglob("*.py"):
+            if ".venv" in p.parts or "node_modules" in p.parts:
                 continue
             if not include_tests and _is_test_path(p):
                 excluded += 1
                 continue
-            yield p, 'python'
+            yield p, "python"
         if excluded:
-            print(f'[django-antipatterns] Skipped {excluded} test file(s). Pass --include-tests to scan them.', file=sys.stderr)
-        for p in path.rglob('*.html'):
-            if '.venv' not in p.parts and 'templates' in p.parts:
-                yield p, 'template'
+            print(
+                f"[django-antipatterns] Skipped {excluded} test file(s). "
+                "Pass --include-tests to scan them.",
+                file=sys.stderr,
+            )
+        for p in path.rglob("*.html"):
+            if ".venv" not in p.parts and "templates" in p.parts:
+                yield p, "template"
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Detect Django anti-patterns')
-    parser.add_argument('path', nargs='?', default='.', help='File or directory')
-    parser.add_argument('--format', choices=['text', 'json'], default='text')
+    parser = argparse.ArgumentParser(description="Detect Django anti-patterns")
+    parser.add_argument("path", nargs="?", default=".", help="File or directory")
+    parser.add_argument("--format", choices=["text", "json"], default="text")
     parser.add_argument(
-        '--category',
-        choices=['query', 'performance', 'view', 'model', 'form', 'security'],
+        "--category",
+        choices=["query", "performance", "view", "model", "form", "security"],
     )
-    parser.add_argument('--min-severity', choices=['low', 'medium', 'high'], default='low')
-    parser.add_argument('--include-tests', action='store_true', default=False, help='Include test files in scan')
+    parser.add_argument(
+        "--min-severity", choices=["low", "medium", "high"], default="low"
+    )
+    parser.add_argument(
+        "--include-tests",
+        action="store_true",
+        default=False,
+        help="Include test files in scan",
+    )
 
     args = parser.parse_args()
-    severity_order = {'low': 0, 'medium': 1, 'high': 2}
+    severity_order = {"low": 0, "medium": 1, "high": 2}
     min_sev = severity_order[args.min_severity]
 
     all_issues = []
-    for filepath, ftype in find_files(Path(args.path), include_tests=args.include_tests):
-        if ftype == 'python':
+    for filepath, ftype in find_files(
+        Path(args.path), include_tests=args.include_tests
+    ):
+        if ftype == "python":
             all_issues.extend(analyze_file(filepath))
-            if filepath.name == 'urls.py':
+            if filepath.name == "urls.py":
                 all_issues.extend(check_urls(filepath))
         else:
             all_issues.extend(check_template(filepath))
@@ -630,13 +674,15 @@ def main():
     if args.category:
         all_issues = [i for i in all_issues if i.category == args.category]
     all_issues = [i for i in all_issues if severity_order[i.severity] >= min_sev]
-    all_issues.sort(key=lambda x: (x.severity != 'high', x.severity != 'medium', x.file, x.line))
+    all_issues.sort(
+        key=lambda x: (x.severity != "high", x.severity != "medium", x.file, x.line)
+    )
 
-    if args.format == 'json':
+    if args.format == "json":
         print(json.dumps([asdict(i) for i in all_issues], indent=2))
     else:
         if not all_issues:
-            print('✅ No Django anti-patterns found!')
+            print("✅ No Django anti-patterns found!")
             return
 
         by_category = defaultdict(int)
@@ -645,23 +691,23 @@ def main():
             by_category[issue.category] += 1
             by_type[issue.pattern_type] += 1
 
-        print(f'Found {len(all_issues)} Django anti-pattern(s):\n')
-        print('By category:')
+        print(f"Found {len(all_issues)} Django anti-pattern(s):\n")
+        print("By category:")
         for cat, count in sorted(by_category.items(), key=lambda x: -x[1]):
-            print(f'  {cat}: {count}')
-        print('\nBy type:')
+            print(f"  {cat}: {count}")
+        print("\nBy type:")
         for t, c in sorted(by_type.items(), key=lambda x: -x[1])[:10]:
-            print(f'  {t}: {c}')
+            print(f"  {t}: {c}")
         print()
 
-        severity_icons = {'high': '🔴', 'medium': '🟡', 'low': '🟢'}
+        severity_icons = {"high": "🔴", "medium": "🟡", "low": "🟢"}
         for issue in all_issues:
             icon = severity_icons[issue.severity]
-            print(f'{icon} [{issue.severity.upper()}] {issue.file}:{issue.line}')
-            print(f'   [{issue.category}] {issue.pattern_type}')
-            print(f'   {issue.description}')
-            print(f'   → {issue.suggestion}\n')
+            print(f"{icon} [{issue.severity.upper()}] {issue.file}:{issue.line}")
+            print(f"   [{issue.category}] {issue.pattern_type}")
+            print(f"   {issue.description}")
+            print(f"   → {issue.suggestion}\n")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
