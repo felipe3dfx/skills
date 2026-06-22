@@ -86,9 +86,7 @@ def test_customer_detail_view():
 
 Always use the `mocker` fixture from pytest-mock. Never import `unittest.mock.patch` or `MagicMock` directly.
 
-> **Precedence note:** Project-specific testing skills (like `django-pytest`) may override
-> these generic mocking patterns. When both this skill and a project-specific skill apply,
-> the project-specific one takes precedence.
+> **Precedence note:** Project-specific testing skills (like `django-pytest`) may override these generic mocking patterns. When both this skill and a project-specific skill apply, the project-specific one takes precedence.
 
 **Preferred: mock at the HTTP/network layer** (works for integration and view tests):
 

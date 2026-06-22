@@ -9,8 +9,7 @@ description: "Pre-commit quality gate — validate changed code, architecture, a
 
 Use when the user asks to prepare, validate, review, or finalize changes before a commit.
 Use after implementation and before staging/committing.
-If the change is managed under SDD, run the configured SDD verification flow first
-and then this skill.
+If the change is managed under SDD, run the configured SDD verification flow first and then this skill.
 
 ## Hard Rules
 
