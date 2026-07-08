@@ -18,7 +18,7 @@ One axis must not hide another: clean code can solve the wrong problem, and corr
 
 Delegate domain rules to available project skills (`django-expert`, `django-pytest`, `htmx`, `huey`, `django-simplify`, `simplify`, `tailwind-4`, `alpinejs`, `django-components`) and project docs (`AGENTS.md`, `docs/agents/AGENTS.md`, `docs/`). One source of truth per domain. If a relevant skill is unavailable, use repository docs and current code evidence.
 
-Apply these cross-cutting lenses inside the relevant domain review. Use extra reviewers only when the user asks or the PR is too large/risky for one pass.
+Apply these cross-cutting lenses inline inside the relevant domain review. Do not treat this skill as permission to spawn subagents. Extra reviewers may be launched only by the active orchestrator/harness according to its delegation policy, or by explicit user request.
 
 | Lens | Use when the change touches | Look for |
 | --- | --- | --- |
