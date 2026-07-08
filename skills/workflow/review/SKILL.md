@@ -1,6 +1,6 @@
 ---
 name: review
-description: "Review a pull request — verifies the change solves the stated problem, delegates domain rules to project skills, and checks design."
+description: "Review PRs or branch diffs: verify Spec fit, Standards/design quality, delegated domain rules, CI evidence, and safe posting."
 metadata:
   author: grupo-ilao
   version: "2.0"
@@ -8,224 +8,185 @@ metadata:
 
 ## Purpose
 
-Review pull requests as an orchestrator, not a rules container:
+Review pull requests or branch diffs as an orchestrator, not a rules container. Keep three axes independent:
 
-1. Does the change actually solve the stated problem?
-2. Does it pass the project's domain rules (delegated to specialized skills)?
-3. Does the design hold up (encapsulation, SRP, transactions, contracts)?
-4. Do GitHub's CI checks for the PR pass?
+1. **Spec / problem fit** — does the change solve the stated problem, without missing requirements or scope creep?
+2. **Standards / design quality** — does it follow documented standards, delegated domain rules, and design heuristics?
+3. **CI evidence** — do GitHub checks for the PR head pass when a PR exists?
 
-This skill delegates domain rules to available project skills (`django-expert`, `django-pytest`, `htmx`, `huey`, `django-simplify`, `simplify`, `tailwind-4`, `alpinejs`, `django-components`) and project docs (`AGENTS.md`, `docs/agents/AGENTS.md`, `docs/`). One source of truth per domain — no duplication here. If a relevant skill is not installed, fall back to the repository docs and current code instead of inventing a missing skill requirement.
+One axis must not hide another: clean code can solve the wrong problem, and correct behavior can still violate project standards.
 
----
+Delegate domain rules to available project skills (`django-expert`, `django-pytest`, `htmx`, `huey`, `django-simplify`, `simplify`, `tailwind-4`, `alpinejs`, `django-components`) and project docs (`AGENTS.md`, `docs/agents/AGENTS.md`, `docs/`). One source of truth per domain. If a relevant skill is unavailable, use repository docs and current code evidence.
+
+Apply these cross-cutting lenses inside the relevant domain review. Use extra reviewers only when the user asks or the PR is too large/risky for one pass.
+
+| Lens | Use when the change touches | Look for |
+| --- | --- | --- |
+| Risk | auth, permissions, user input, settings, public APIs, dependencies | authorization, secrets, raw HTML/SQL/commands, cookie/security flags, dependency evidence |
+| Readability | large/unclear diffs, duplicated code, complex functions, vague PR context | intent-revealing names, dead code, magic values, duplicated logic, reviewable scope |
+| Reliability | tests, behavior changes, importers, contracts, edge cases | behavior-first tests, invalid/empty/failure paths, deterministic outputs, useful coverage |
+| Resilience | async tasks, external services, retries, performance, operations | fallback/retry behavior, observability, rollback/fix-forward path, user-visible performance risk |
 
 ## Step 1 — Gather Context
 
-**Fetch PR data** using whatever platform integration, CLI, or web context is available:
-- title, description, author, and base branch
-- list of changed files and diff stats
-- inline comments and unresolved threads
-- review history (APPROVED / CHANGES_REQUESTED / DISMISSED)
+**Choose the branch**:
 
-**Fetch linked issue context when available**: If the PR title contains an `ILA-\d+` Linear issue ID, use an available Linear integration or ask the user for the issue details. Pull the problem statement, acceptance criteria, and linked documents when possible. Use this as the "problem context" for Step 2.
+- **PR review**: fetch title, description, author, base branch, changed files, diff stats, inline comments, unresolved threads, review history, and CI context.
+- **Branch/WIP diff review**: require a fixed point (`main`, branch, tag, commit SHA, `HEAD~N`). Validate it with `git rev-parse <fixed-point>`, compare with `git diff <fixed-point>...HEAD`, and confirm the diff is non-empty. Mark platform-only steps (review history, CI, posting) as not applicable unless a PR exists.
 
-If no Linear ID is present in the title, ask the user for the problem context before proceeding. Do not start a review without understanding what the PR is supposed to solve.
+**Identify the problem/spec source** in this order:
 
-**Read `AGENTS.md`** at the repo root for the project map. Then prefer `docs/agents/AGENTS.md` as the agent-facing bootstrap/router for repo conventions. Follow the project-specific guides it points to for structural, style, pattern, and testing concerns based on what the PR touches.
+1. Linked Linear issue from PR title (`ILA-\d+`), branch name, or commit messages.
+2. PR description or user-provided issue/spec/PRD path.
+3. A matching file under `docs/`, `specs/`, or project planning docs.
+4. If no source is found, ask the user for the problem context before reviewing.
 
-**Previous review rounds**: If prior reviews exist, read all comments and verify each was addressed in the actual code — not just replied to in the thread. A DISMISSED review does not mean rejected; it may have been auto-dismissed by a new commit. Check the review's `commit_id` against the current HEAD before drawing conclusions.
+**Read standards sources**: root `AGENTS.md`, then `docs/agents/AGENTS.md` when present. Follow the project guides they route to for structure, style, patterns, and testing concerns. Also determine the target Python version from project evidence (`pyproject.toml`, `.python-version`, Docker/CI config) before making syntax-compatibility claims.
 
-When prior reviews reference inline comments, verify those were actually submitted via the GitHub API — not just mentioned in the review body.
+**Check previous review rounds for PR reviews**: read prior comments and verify each claimed fix in the current code. A DISMISSED review may have been auto-dismissed by a new commit; compare the review `commit_id` to current HEAD. When prior reviews reference inline comments, verify they were submitted through the GitHub API.
 
----
+**Done when** the review branch is known, target diff is non-empty, changed files are known, problem context is available or explicitly missing, standards sources are identified, and PR-only obligations are checked or marked not applicable.
 
-## Step 2 — Verify the Solution Solves the Problem
+## Step 2 — Spec / Problem Fit Pass
 
-Well-written code can still fail to fix the problem.
+Review this axis independently from style or design quality. Well-written code can still fail to fix the problem.
 
-**Trace the full flow**: Follow the data from where it enters the system, through every layer it touches, to where it exits or is consumed. Verify that the fix operates at the layer where the root cause lives.
+- **Trace the full flow**: follow data from entry point, through every touched layer, to where it exits or is consumed.
+- **Find the exit condition**: if something retries or queues repeatedly, verify how it leaves the retry/processing loop.
+- **Check the abstraction level**: a fix below or above the root-cause layer is a workaround until proven otherwise.
+- **Compare behavior**: when a property, method, or function is replaced, state the behavior changed from X to Y.
+- **Check coverage against the spec**: quote or reference the requirement for each missing, partial, wrong, or scope-creep finding. If no spec exists, state that the Spec pass is limited to PR/user-provided context.
 
-**Find the exit condition**: When something fails repeatedly, how does it leave the processing queue or retry loop? If there is no exit condition, the fix is incomplete regardless of how correct the individual code looks.
-
-**Check the abstraction level**: If the problem lives in one layer but the fix is applied in a different one, the root cause is likely still present. A fix at the wrong layer is a workaround, not a solution.
-
-**Ask**: Does the changed code remove the root cause, or does it add logic that coexists with the root cause while papering over the symptoms?
-
-**Behavioral changes from replaced code**: When a PR replaces an existing property, method, or function, trace the behavioral difference between old and new. Even if the new behavior appears correct, surface it explicitly — the person merging needs to know that behavior X changed to Y, not just that the implementation changed.
-
----
+**Done when** every acceptance criterion or problem statement has a verdict: satisfied, missing, partial, out of scope, or unreviewable due to missing context.
 
 ## Step 3 — PR Size Heuristic
 
-Before deep-diving into individual files, measure the PR:
+Before deep file review, measure additions and files changed.
 
-- If additions > 500 lines OR files changed > 20, use that as an internal review risk signal and prioritize critical correctness/design findings.
-- Do not include a PR-size warning by default. Mention size only when it materially prevents a reliable review or hides risk that the author can act on.
+- If additions > 500 lines OR files changed > 20, use that as an internal risk signal and prioritize critical correctness/design findings.
+- Mention size only when it materially prevents a reliable review or hides actionable risk.
 
----
+**Done when** review-depth risk is known and the review scope has been prioritized accordingly.
 
 ## Step 4 — Apply Project Standards via Delegation
 
-Based on the file types touched, load and apply the relevant available project skills. Each skill is the canonical source for its domain — do not duplicate their rules in this review. If the runtime cannot load a listed skill, continue with `AGENTS.md`, `docs/`, and current code evidence.
+Load and apply relevant project skills by touched file type. Each skill is canonical for its domain; keep domain rules in that skill or local references. If a listed skill is unavailable, continue with `AGENTS.md`, `docs/`, and current code evidence.
 
-### Routing by file type
-
-| Path pattern | Skills to invoke |
-|---|---|
+| Path pattern | Skills / reference |
+| --- | --- |
 | `apps/**/services*.py`, `apps/**/services/*.py` | `django-expert`, `django-simplify`, `simplify` |
 | `apps/**/managers.py`, `apps/**/managers/*.py` | `django-expert`, `django-simplify` |
 | `apps/**/views*.py`, `apps/**/forms*.py`, `apps/**/models*.py` | `django-expert`, `django-simplify`, `simplify` |
-| `apps/**/*_tests.py`, `apps/**/tests/**/*.py` | `django-pytest` |
-| `apps/**/tasks.py`, `apps/**/tasks/*.py` | `huey` |
-| `apps/**/api.py`, `apps/**/api/*.py` | `django-expert` plus API docs/current code |
-| `apps/**/migrations/*.py` | (manual rules — see below) |
+| `apps/**/*_tests.py`, `apps/**/tests/**/*.py` | `django-pytest`, plus `references/test-review-quality.md` |
+| `apps/**/tasks.py`, `apps/**/tasks/*.py` | `huey`, Resilience lens |
+| `apps/**/api.py`, `apps/**/api/*.py` | `django-expert`, API docs/current code, Risk lens |
+| `apps/**/migrations/*.py` | `references/migration-review-rules.md` |
 | `**/*.html` with `hx-*` attributes | `htmx` |
 | `**/*.html` with `x-data` / `x-bind` / `x-show` / `x-on` | `alpinejs` |
 | `**/*.html`, `**/*.css` with Tailwind classes | `tailwind-4` |
 | `components/**/*` | `django-components` |
 | `tests/e2e/**/*.py`, `tests/e2e/**/*.ts` | available e2e/browser-testing guidance or manual review |
 
-For any Python change, always additionally apply the project-wide coding standards routed from `docs/agents/AGENTS.md` or the repo's equivalent agent-facing project documentation router.
+For any Python change, also apply project-wide coding standards routed from `docs/agents/AGENTS.md` or the equivalent project documentation router.
 
-### Test review quality
+**Done when** every changed file is routed to a domain skill, local reference, project standard, or explicit manual rule; missing skill coverage is called out as a limitation.
 
-When a PR adds or modifies tests, apply `django-pytest` as the source of truth and be strict about test quality. Do not treat the presence of a new test as sufficient coverage.
+## Step 5 — Standards / Design Pass
 
-### Migration-specific rules (no dedicated skill)
+Apply these cross-cutting heuristics after domain rules. Documented project rules win over generic smells. Treat smells as judgment calls, not automatic blockers.
 
-- `RunPython` must provide `reverse_code` or explicit `RunPython.noop`
-- Never import model classes inside `RunPython` — use `apps.get_model('app', 'Model')`
-- `null=False` added to an existing column requires a two-step migration (add with default → backfill → drop default)
-- Separate schema migrations from data migrations for easier rollback
-- `on_delete=CASCADE` requires explicit justification — silent cascading deletes corrupt data
-- `CREATE INDEX` on large tables should use `AddIndexConcurrently` to avoid locking writes
-- `unique=True` added to an existing column requires a dedup migration first
+- **Model relationships**: when relationships change, apply `django-expert` and `django-simplify` source-of-truth rules.
+- **Encapsulation**: importing private symbols (`_name`) from another module signals misplaced responsibility; make the symbol public or move it to a shared module.
+- **Mysterious names**: names should reveal intent; if no honest name exists, the design is likely unclear.
+- **Duplicated code**: repeated logic shape should be extracted or centralized unless project standards intentionally prefer duplication there.
+- **Feature envy / message chains**: logic reaching deeply into another object's data belongs closer to that data or behind a clearer method.
+- **Single Responsibility**: split units that have independently evolving reasons to change.
+- **Implicit contracts**: parsing exception message strings creates silent cross-module contracts; use typed exceptions or explicit result objects.
+- **Transactions**: services performing multiple writes, or catching `IntegrityError`, need `transaction.atomic`.
+- **Bulk writes**: one write per object in a loop should usually become `bulk_create` / `bulk_update`.
+- **Data clumps / missing abstraction**: values traveling together across signatures should become a structure.
+- **Primitive obsession**: meaningful domain concepts deserve explicit types/objects instead of repeated strings, numbers, or booleans.
+- **Speculative generality**: remove abstractions, parameters, hooks, or extension points not required by the current spec.
+- **Unreachable or redundant control flow**: investigate; it often signals misunderstood execution.
+- **Python-version-sensitive syntax**: verify the target Python version before flagging syntax. In Python 3.14+, `except A, B:` is valid for multiple exception types when there is no `as` binding; parentheses are still required for `except (A, B) as exc:`.
+- **Behavior-preserving simplifications**: surface unnecessary defensive code, avoidable cost, redundant variables, or clearer expression opportunities when impact is meaningful.
 
----
+For IlaOS reviews, load `references/ilaos-blocking-criteria.md` after applying general heuristics.
 
-## Step 5 — Design and Architecture
-
-Beyond the domain rules applied in Step 4, apply these cross-cutting heuristics:
-
-**Django model relationship changes**: When a PR adds or changes model relationships, invoke `django-expert` and `django-simplify`; apply their canonical relationship source-of-truth rules.
-
-**Encapsulation violations**: Importing private symbols (prefixed with `_`) from another module signals misplaced responsibility. Either make the symbol explicitly public, or move it to a shared module.
-
-**Single Responsibility violations**: A unit should have one reason to change. If two responsibilities will evolve independently in the future, split them now.
-
-**Implicit contracts between modules**: Detecting conditions by parsing exception message strings creates a silent contract — a rename elsewhere breaks behavior with no type error. Use custom exception classes instead.
-
-**Missing transaction boundaries**: Any service performing multiple writes, or catching `IntegrityError`, must use `@transaction.atomic`. Without it, a failed write in Postgres leaves the transaction aborted and silently fails all subsequent queries in the request.
-
-**Inefficient bulk writes**: Writing inside a loop — one query per object — should become `bulk_create` / `bulk_update`.
-
-**Missing abstraction**: When the same N values travel together across multiple function signatures, group them into a structure.
-
-**Unreachable code**: A block that can never execute signals misunderstood control flow. Investigate before removing.
-
-**Redundant control flow**: Statements the loop or block already performs implicitly signal unclear thinking.
-
-**Behavior-preserving simplifications**: Actively look for improvements beyond correctness — unnecessary defensive code, costly operations that could be avoided, redundant intermediate variables, or logic that could be expressed more simply. Non-blocking unless the impact is significant, but always surface them.
-
-### Project-specific blocking criteria
-
-For IlaOS reviews, these are blocking unless the current diff proves they are harmless in that specific context:
-
-- Temporary browser/debug statements left in production code (`console.log`, `console.debug`, `debugger`, or equivalent).
-- Missing `transaction.atomic` around service operations that perform multiple related writes or combine writes with state transitions.
-- Persisting timestamps with `timezone.localtime()` instead of `timezone.now()`; local conversion belongs in presentation code, not persisted state.
-
----
+**Done when** each Standards/design finding is tied to a documented rule, delegated skill, local reference, or named heuristic, with severity justified by current code evidence.
 
 ## Step 6 — Inspect GitHub CI Checks
 
-Do **not** run tests, linters, type checkers, formatters, or project tooling locally as part of this review skill. The review validates automated checks against the PR's GitHub check runs / CI status.
+For PR reviews, validate automated checks from the PR's GitHub check runs / CI status. For branch/WIP diff reviews without a PR, mark CI as not applicable instead of running local project tooling.
 
-Fetch the current GitHub checks for the PR head commit and report their state:
-- If a check failed, quote the failing check name and summarize the failure from GitHub's check output or log snippet when available.
-- If checks are pending, say they are pending; do not replace them by running local commands.
-- If checks are unavailable or the platform integration cannot fetch them, state that explicitly and continue the code review using code evidence only.
+Fetch current GitHub checks for the PR head commit:
 
-CI results are useful evidence, but they do not replace the reviewer's job: still verify correctness, design, and changed-code behavior from the actual diff and current files.
+- If a check failed, quote the failing check name and summarize GitHub's output/log snippet when available.
+- If checks are pending, say they are pending.
+- If checks are unavailable, state that explicitly and continue the code review using code evidence only.
 
-**Search callers when signatures change**: If the PR modifies a public function signature, a model field, or a URL name, use available search tools to find every caller and verify they were updated. An unchanged caller of a changed signature is a broken reference the review must catch.
+CI results are evidence, not a substitute for review. Still verify correctness, design, and changed-code behavior from the actual diff and current files.
 
----
+**Search callers when signatures change**: if the PR modifies a public function signature, model field, or URL name, find every caller and verify it was updated.
 
-## Step 7 — Security Pass (conditional)
+**Done when** CI state is reported or marked not applicable/unavailable, and signature/field/URL changes have caller evidence.
 
-If the diff touches any of:
+## Step 7 — Security Pass
 
-- `apps/user/**`, `apps/**/auth*` — authentication or permissions
-- `apps/api/**`, `**/api.py` — public API endpoints
-- `apps/**/forms*.py` that handle file uploads
-- `config/**`, `**/settings*.py` — configuration
+Apply the Risk lens when the diff touches:
 
-If a security-review skill or checklist is available, apply it for extra rigor. It is complementary to this review — use both when available, but do not block on a missing optional skill.
+- `apps/user/**`, `apps/**/auth*` — authentication or permissions.
+- `apps/api/**`, `**/api.py` — public API endpoints.
+- `apps/**/forms*.py` handling file uploads.
+- `config/**`, `**/settings*.py` — configuration.
 
----
+If a security-review skill or checklist is available, apply it as complementary evidence; missing optional security skills are a review limitation, not an invented requirement.
+
+**Done when** security-sensitive paths have been reviewed or explicitly marked not present.
 
 ## Step 8 — Verify Before Commenting
 
-Before including any finding in the review, confirm it in the actual code at the current commit — not just the diff. If something looks like a violation, read the file to verify it is still present. Technical claims that turn out to be wrong damage the credibility of the review.
+Before including any finding, confirm it in the actual code at the current commit, not just the diff. Keep Spec findings and Standards findings distinguishable until the final body; preserve both axes even when one is clean.
 
----
+**Done when** every finding has current-code evidence, file/line when possible, and a clear axis: Spec, Standards/design, CI, or Security.
 
 ## Step 9 — Validate With User Before Posting
 
-Before posting through any platform integration or API, present the full review content to the user and wait for explicit confirmation.
+For PR reviews, present the full review content and wait for explicit confirmation before posting through any platform integration or API. For branch/WIP diff reviews, return the draft review and mark posting as not applicable unless the user provides a PR target.
 
 Show:
-- The full review body (all sections as they will appear on GitHub)
-- Any inline comments, with file path and line number
-- The proposed event (`APPROVE`, `REQUEST_CHANGES`, or `COMMENT`)
 
-Then STOP and wait. Do not post until the user says to proceed. The user may want to remove findings, soften wording, change the verdict, or add context. This step is MANDATORY — posting a review is a visible action that affects another developer's work.
+- Full review body as it will appear on GitHub.
+- Inline comments with file path and line number.
+- Proposed event: `APPROVE`, `REQUEST_CHANGES`, or `COMMENT`.
 
----
+Then STOP. Posting is a visible action that affects another developer's work.
+
+**Done when** the user explicitly approves posting, asks for changes to the draft, or posting is marked not applicable.
 
 ## Output Format
 
-**Language**: Spanish. All review comments (body and inline) are written in Spanish. The team's working language for reviews is Spanish, even though code and identifiers are in English.
+**Language**: Spanish. All review comments and inline comments are written in Spanish. Code and identifiers stay in English.
 
-**Tone**: Constructive throughout — even when requesting changes. Frame as "acá conviene X porque Y", never "this is wrong with your code".
+**Tone**: Constructive throughout, including change requests. Explain the technical reason and give a concrete path forward.
 
 ### Structure
 
-1. **What the PR does** — one sentence
-2. **Does it solve the problem?** — verdict first, reasoning after
-3. **Blocking issues** — every finding is a three-part unit. All three elements are required:
-   - **What** is wrong — the specific problem
-   - **Why** it is wrong — the technical reason (broken contract, performance risk, layer violation, test contract gap, etc.)
-   - **How to fix it** — a concrete direction or proposed solution. Sketch the implementation when possible — pointing at an abstraction is less useful than showing the path.
-
-   Omitting any of the three produces incomplete feedback: "this is wrong" without a reason is unverifiable; a reason without a solution blocks the author without helping them move forward.
-4. **Warnings** — non-blocking but worth addressing
-5. **GitHub CI checks** — current check-run status; include failing check names and GitHub-provided failure details when available
-6. **What is correct** — brief acknowledgment of what was done well
+1. **Qué cambia** — one sentence.
+2. **Spec / ajuste al problema** — verdict summary only: solved, partial, not solved, or unreviewable; mention missing/scope-creep categories without duplicating full findings.
+3. **Standards / calidad de diseño** — verdict summary only: project-standard/domain/design status without duplicating full findings.
+4. **Bloqueantes** — concrete findings requiring change. Each finding must include **qué**, **por qué**, and **cómo resolverlo**.
+5. **Advertencias** — non-blocking but worth addressing.
+6. **Checks de GitHub CI** — current check-run status when a PR exists, or not applicable/unavailable.
+7. **Qué está bien** — brief acknowledgment of what was done well.
 
 ### Multi-round reviews
 
-When this is a re-review, structure the body in two parts:
-1. Explicitly list what was resolved from the previous round — the author deserves to see their work validated before reading what remains.
-2. Then list what still needs to change.
+For re-reviews, first list what was resolved from the previous round, then list what still needs to change.
 
-Post using the available platform integration with the appropriate event (`REQUEST_CHANGES`, `APPROVE`, or `COMMENT`). Add inline comments on the specific diff lines for blocking issues when the line can be identified precisely.
+## References
 
----
-
-## Examples
-
-> The cases below illustrate the general rules above. They are real situations encountered in code reviews — not the rules themselves.
-
-**Fix at the wrong abstraction level**: A service blocked individual documents via a JSON field on each document, but the processing queue filtered by the parent record. After the fix, the parent record kept re-entering the queue because the queue filter had no knowledge of the document-level state. Root cause: the fix was applied one layer below where the problem lived.
-
-**Implicit cross-module contract**: A module detected a permanent failure by checking whether a specific phrase appeared in an exception message string. A rename of that message in another module would silently change behavior with no error surfaced. Correct approach: a custom exception class that makes the contract explicit and type-safe.
-
-**Private symbol imported cross-module**: A function prefixed with `_` was imported from a sibling module. The prefix signals it is private to its module. Importing it externally means the responsibility is misplaced — the function should either be made explicitly public or extracted to a shared module.
-
-**SRP violation in a service**: A form-submission service also contained logic to create related records from an AI cache. These are two separate concerns that change for different reasons. They belong in separate services, or the AI data should be passed as form initial data in the view so the user can confirm before anything is persisted.
-
-**Comment thread resolved but code not updated**: A developer replied in a review thread that they had removed a piece of logic. The actual diff still contained it. Never trust the thread — verify the diff directly.
-
-**Signature changed, caller not updated**: A service function added a required `agency` keyword argument. Grep found two callers unchanged — silent `TypeError` at runtime. Caught by the Step 6 grep-for-callers rule.
+- `references/test-review-quality.md` — test-review rules loaded when tests change.
+- `references/migration-review-rules.md` — migration-review rules loaded when migrations change.
+- `references/ilaos-blocking-criteria.md` — IlaOS-specific blocking criteria loaded during Standards/design review.
+- `references/review-examples.md` — examples illustrating common review findings.

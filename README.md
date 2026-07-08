@@ -46,7 +46,7 @@ Pick the skills you want and the agents to install them on. Skills are copied as
 |-------|-------------|
 | `simplify` | Simplify recently-modified code for clarity; escalates to deep multi-review on risk signals |
 | `prepare-commit` | Pre-commit quality gate — validate changed code, architecture, and tests before staging |
-| `review` | PR code review workflow — problem-first validation, root-cause checks, delegates domain rules to project skills |
+| `review` | PR/diff code review workflow — independent Spec and Standards passes, root-cause checks, delegates domain rules to project skills |
 | `open-pr` | Issue-first PR creation, gated on the post-implementation quality checks |
 | `repo-manager` | Repository/platform operations — PR/MR/issue workflows, backlog and merge coordination |
 | `create-linear-comment` | Draft Linear QA comments aligned with issue requirements and commits |
