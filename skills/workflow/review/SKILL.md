@@ -111,7 +111,7 @@ Apply these cross-cutting heuristics after domain rules. Documented project rule
 - **Python-version-sensitive syntax**: verify the target Python version before flagging syntax. In Python 3.14+, `except A, B:` is valid for multiple exception types when there is no `as` binding; parentheses are still required for `except (A, B) as exc:`.
 - **Behavior-preserving simplifications**: surface unnecessary defensive code, avoidable cost, redundant variables, or clearer expression opportunities when impact is meaningful.
 
-For IlaOS reviews, load `references/ilaos-blocking-criteria.md` after applying general heuristics.
+For project-specific blocking criteria, follow the target repository's `docs/agents/AGENTS.md` and review-routing docs. Do not keep project policy inside this installed skill.
 
 **Done when** each Standards/design finding is tied to a documented rule, delegated skill, local reference, or named heuristic, with severity justified by current code evidence.
 
@@ -188,5 +188,4 @@ For re-reviews, first list what was resolved from the previous round, then list 
 
 - `references/test-review-quality.md` — test-review rules loaded when tests change.
 - `references/migration-review-rules.md` — migration-review rules loaded when migrations change.
-- `references/ilaos-blocking-criteria.md` — IlaOS-specific blocking criteria loaded during Standards/design review.
 - `references/review-examples.md` — examples illustrating common review findings.
