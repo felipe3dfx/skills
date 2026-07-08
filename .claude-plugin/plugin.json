@@ -1,6 +1,6 @@
 {
   "name": "felipe3dfx-skills",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "skills": [
     "./skills/backend/django-components",
     "./skills/backend/django-expert",
